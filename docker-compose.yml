@@ -1,0 +1,10 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: backend/DeliveryForecast.Api/Dockerfile
+    ports: ["5080:8080"]
+  web:
+    build: ./frontend
+    ports: ["5173:80"]
+    depends_on: [api]
