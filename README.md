@@ -1,70 +1,44 @@
-# PSP Delivery Simulator — Step 3.3 (drop-in patch)
+# PSP Delivery Simulator — Iteration 3.4.1: Chart data integration
 
-**This is an additive patch, not a replacement application.** It depends only on TypeScript/Node and does **not** modify Iterations 1, 2, 3.1, 3.2, or the existing UI.
+This **additive patch** prepares Recharts-compatible data using the validated services from Iterations 2, 3.1, 3.2, and 3.3. It **does not modify** the app dashboard, burn-up chart, original mockData.ts or underlying math.
 
 ## Apply
 
-Extract the ZIP, then copy these two new files into the matching folders of your existing working PSP project:
+Unzip and copy these three new files into the corresponding paths of your validated 3.3 app:
 
-- `src/services/cumulativeForecast.ts`
-- `tests/cumulative-forecast.test.mjs`
+- `src/services/releaseChartData.ts` — composes realistic/optimistic/pessimistic forecasts and sprint actuals.
+- `src/data/originalReleaseDataset.ts` — static per-sprint mock team capacity and the adapter function `getIntegratedMockData()`.
+- `tests/release-chart-data.test.mjs` — 7 new tests including overdue releases.
 
-Run in your project folder:
+The new data adapter **is not yet used by `App.tsx`**. Step 3.4.2 will switch from `getMockData()` to `getIntegratedMockData()` and adapt summary display. Do **not** change the chart during Step 3.4.1.
+
+Run:
 
 ```powershell
 npm test
 npm run build
 ```
 
-If you had 23 passing tests from Step 3.2, there should now be **33 tests** (10 new). No new npm dependencies.
+Expected: **40 passing tests** if your previous 33 are all present; a successful build.
 
-## Calculation
+## Data flow
 
-Input: release scope (SP) plus the three sprint throughputs returned by `calculateSprintForecastScenarios()` from Step 3.2. Throughput is per sprint, based on effective SE/QA capacity and historical delivered SP.
+`historicalMock + originalSprintMembers (effective days per sprint) -> calculateSprintForecastScenarios -> generateCumulativeForecast -> merge with mockRelease.sprintCompletedPoints -> chartData`
 
-For each scenario and each completed sprint `n`:
+`chartData` has the existing keys `sprint`, `scope`, `optimistic`, `realistic`, `pessimistic`, `actual`. `sprintNumber` is also included for robust indexing. `Start` is the label for numeric index 0.
 
-```
-cumulative(n) = min(scope, startCompletedSP + (n - startSprint) * SPperSprint)
-completionSprint = startSprint + ceil((scope - startCompletedSP) / SPperSprint)
-```
+Original capacity assumptions are static and independent of actual delivery. The new per-sprint example assumes 10 available SE effective days and 5 QA effective days, under the validated mock history (100 SP delivered from 100 SE and 50 QA effective days). This produces 10 realistic SP/sprint with ±15% scenarios. The *example* scope and actuals are read from the existing `mockRelease` object. These values are independent from Iteration 2's `currentTeamMock`, which represents a release-level capacity example.
 
-- Original forecasts begin at numeric sprint index `0`, **displayed as `Start`**, then `S1`, `S2`, etc.
-- All three lines remain **flat at the scope** after completion.
-- Data extends through the latest completion sprint (normally pessimistic).
-- The calculation keeps full precision; only the completion-sprint index is rounded up.
-- If scope is zero, completion is `0` and the dataset contains only `Start`.
-- If scope remains and a rate is zero, `status: 'not-forecastable'`, with a `null` completion sprint for that line; a full dataset cannot be generated. This prevents misleading infinite projections.
-- A 10,000-sprint safety limit prevents accidental memory exhaustion from unrealistic positive throughputs.
-- Optional starting-sprint and cumulative-completed inputs are included for future capacity-based reforecasting. Do **not** connect updated forecasting yet.
+## Important edge cases
 
-## Expected results with ±15%
+- The chart horizon is `max(last forecast point, last completed sprint)`. If actuals extend past pessimistic completion, original lines stay at the original scope while actuals continue.
+- Forecasts never change as actual sprint results change.
+- Actuals only extend to the latest completed sprint; later points have `actual: null`.
+- If zero capacity makes a forecast unforecastable, the result is flagged and no fictitious future forecast is generated.
+- If actual completed story points exceed original scope, actuals are still shown and `remaining` is floored at zero, without rewriting the original scope.
 
-| Scope | Realistic SP/sprint | Optimistic finish | Realistic finish | Pessimistic finish |
-|---:|---:|---:|---:|---:|
-| 100 | 10 | S9 | S10 | S12 |
-| 150 | 20 | S7 | S8 | S9 |
-| 150 | 7 | S19 | S22 | S26 |
+## Scope boundary
 
-## Usage example (later UI integration)
+This is **data-only integration**. UI and any changes to display labels, marks, capacity buckets, charts, and completion summaries belong to **Step 3.4.2**. No sprint-level story planning, revised forecast or per-sprint capacity input forms.
 
-```ts
-import { calculateSprintForecastScenarios } from './services/forecastScenarios';
-import { generateCumulativeForecast } from './services/cumulativeForecast';
-
-const scenarios = calculateSprintForecastScenarios(historical, nextSprintMembers, 15);
-const original = generateCumulativeForecast(100, scenarios);
-// original.points: [{sprintNumber: 0, sprint: 'Start', scope:100,
-//   optimistic:0, realistic:0, pessimistic:0}, ...]
-// original.completionSprints: {optimistic:9, realistic:10, pessimistic:12}
-```
-
-## Deliberately unchanged
-
-- React dashboard and the existing three original **mock** forecast lines
-- Actual completed SP and sprint history
-- Historical and SE/QA capacity calculators
-- Capacity bucket placeholder
-- Updated/revised forecast, sprint-specific capacity form, and story-level planning
-
-Step 3.4 will wire **this generated dataset** into the existing burn-up chart and retain the independently recorded actual delivery progress.
+Suggested commit: `feat: merge original forecast and actuals into burn-up dataset`
