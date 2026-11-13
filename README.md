@@ -1,49 +1,70 @@
-# PSP Delivery Simulator — Iteration 3.2 (drop-in patch)
+# PSP Delivery Simulator — Step 3.3 (drop-in patch)
 
-This is **only Step 3.2**: calculate optimistic and pessimistic story points per sprint as configurable percentage variations around the validated Step 3.1 realistic throughput.
+**This is an additive patch, not a replacement application.** It depends only on TypeScript/Node and does **not** modify Iterations 1, 2, 3.1, 3.2, or the existing UI.
 
-## Apply to your existing project
+## Apply
 
-Your working tree must already contain the validated Iteration 2 code and the Step 3.1 patch.
+Extract the ZIP, then copy these two new files into the matching folders of your existing working PSP project:
 
-Copy the patch's two files to the corresponding paths in your existing project (do not replace the entire project):
+- `src/services/cumulativeForecast.ts`
+- `tests/cumulative-forecast.test.mjs`
 
-- `src/services/forecastScenarios.ts` — new forecasting service
-- `tests/forecast-scenarios.test.mjs` — new regression tests
-
-Run:
+Run in your project folder:
 
 ```powershell
 npm test
 npm run build
 ```
 
-The original 9 tests and Step 3.1's 7 tests should remain, and this patch adds 7 tests (**23 total** if everything is present).
+If you had 23 passing tests from Step 3.2, there should now be **33 tests** (10 new). No new npm dependencies.
 
 ## Calculation
 
-First call `calculateRealisticSprintForecast()` from Step 3.1, which already uses historical effective SE/QA productivity and the limiting role for **one future sprint**.
+Input: release scope (SP) plus the three sprint throughputs returned by `calculateSprintForecastScenarios()` from Step 3.2. Throughput is per sprint, based on effective SE/QA capacity and historical delivered SP.
 
-For a realistic throughput `R` and uncertainty assumption `p` (%):
+For each scenario and each completed sprint `n`:
 
-- optimistic = `R * (1 + p / 100)`
-- realistic = `R`
-- pessimistic = `R * (1 - p / 100)`
+```
+cumulative(n) = min(scope, startCompletedSP + (n - startSprint) * SPperSprint)
+completionSprint = startSprint + ceil((scope - startCompletedSP) / SPperSprint)
+```
 
-Default uncertainty assumption is **±15%**, adjustable to 10%, 20% or another finite percentage in `[0,100)`. This is a *planning sensitivity*, not a statistical confidence interval.
+- Original forecasts begin at numeric sprint index `0`, **displayed as `Start`**, then `S1`, `S2`, etc.
+- All three lines remain **flat at the scope** after completion.
+- Data extends through the latest completion sprint (normally pessimistic).
+- The calculation keeps full precision; only the completion-sprint index is rounded up.
+- If scope is zero, completion is `0` and the dataset contains only `Start`.
+- If scope remains and a rate is zero, `status: 'not-forecastable'`, with a `null` completion sprint for that line; a full dataset cannot be generated. This prevents misleading infinite projections.
+- A 10,000-sprint safety limit prevents accidental memory exhaustion from unrealistic positive throughputs.
+- Optional starting-sprint and cumulative-completed inputs are included for future capacity-based reforecasting. Do **not** connect updated forecasting yet.
 
-**Important:** All calculations preserve full precision. The old PSP workbook may round an intermediate SE:QA ratio down to one decimal, leading to a 21 vs approximately 21.8 SP difference in one earlier scenario. That difference is already understood and **not** introduced by 3.2. We intentionally do not round intermediate rates, and scope capping and display rounding are deferred to later steps.
+## Expected results with ±15%
 
-## Example
+| Scope | Realistic SP/sprint | Optimistic finish | Realistic finish | Pessimistic finish |
+|---:|---:|---:|---:|---:|
+| 100 | 10 | S9 | S10 | S12 |
+| 150 | 20 | S7 | S8 | S9 |
+| 150 | 7 | S19 | S22 | S26 |
 
-Historical: 100 SP delivered, 100 SE effective days, 50 QA effective days. Upcoming sprint: 10 SE effective days and 5 QA effective days. Realistic = 10 SP/sprint; with default ±15%: optimistic = 11.5, realistic = 10, pessimistic = 8.5 SP/sprint.
+## Usage example (later UI integration)
 
-## Not changed
+```ts
+import { calculateSprintForecastScenarios } from './services/forecastScenarios';
+import { generateCumulativeForecast } from './services/cumulativeForecast';
 
-- Existing dashboard, burn-up chart and fixed original forecast series
-- Actual delivered SP and sprint history
-- Iteration 2 or 3.1 calculation code
-- Capacity buckets (deferred)
-- No scope-capped cumulative sprint projections, dates, or updated forecasts (later iterations)
+const scenarios = calculateSprintForecastScenarios(historical, nextSprintMembers, 15);
+const original = generateCumulativeForecast(100, scenarios);
+// original.points: [{sprintNumber: 0, sprint: 'Start', scope:100,
+//   optimistic:0, realistic:0, pessimistic:0}, ...]
+// original.completionSprints: {optimistic:9, realistic:10, pessimistic:12}
+```
 
-Suggested commit: `feat: add optimistic and pessimistic sprint throughput scenarios`
+## Deliberately unchanged
+
+- React dashboard and the existing three original **mock** forecast lines
+- Actual completed SP and sprint history
+- Historical and SE/QA capacity calculators
+- Capacity bucket placeholder
+- Updated/revised forecast, sprint-specific capacity form, and story-level planning
+
+Step 3.4 will wire **this generated dataset** into the existing burn-up chart and retain the independently recorded actual delivery progress.
