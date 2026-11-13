@@ -1,33 +1,37 @@
-# PSP Delivery Simulator — Iteration 4.1.1: Draft BL configuration model
+# PSP Delivery Simulator — Iteration 4.1.2: Draft BL → Forecast Adapter
+
+## Prerequisite
+
+Your validated 4.1.1 project (47 passing tests). Keep `src/models/DraftBaselineConfig.ts` and all services and tests from previous iterations.
 
 ## Apply
 
-This patch adds two new files and **does not replace any existing files**:
+Copy the `src` and `tests` folders from this ZIP into your project, preserving paths.
 
-- `src/models/DraftBaselineConfig.ts`
-- `tests/draft-baseline-config.test.mjs`
+- **NEW** `src/services/draftBaselineDataset.ts`: validates draft inputs, then forwards the scope, variation, historical data, team capacity, and actuals to the **existing** 3.4 chart-data engine. No changes to the forecast math.
+- **REPLACE** `src/data/originalReleaseDataset.ts`: adds `getInitialDraftBaselineConfig()`; makes `getIntegratedMockData(draft?)` accept an optional draft. The no-argument call in your current `App.tsx` remains supported and produces the same results as before.
+- **NEW** `tests/draft-baseline-dataset.test.mjs`: 7 regression tests.
 
-Unzip into the root of the validated Iteration 3.4 project, preserving the folder structure.
+No edits to `App.tsx`, `mockData.ts`, chart styling, existing service algorithms, or historical capacity UI. The interactive UI is explicitly reserved for **4.1.3**.
 
-## What's included
+## Expected results
 
-- Typed `DraftBaselineConfig`: release name, scope (SP), variation percentage.
-- Factory defaults from existing `mockRelease` (Release Alpha, 240 SP, ±15%).
-- Pure validation helpers to prevent invalid edits from reaching the calculation engine.
-- Variation boundaries (0–30%) matching the agreed slider concept.
-- No modification to original release inputs or actual sprint results.
-- Seven tests covering defaults, independence, and invalid values.
+- 4.1.1's original 47 tests + 7 new tests = **54 tests**.
+- `npm run build` successful.
+- No visible UI change yet.
 
-## Important scope boundary
+Validation commands:
 
-**4.1.1 is model-only.** The UI and chart must remain unchanged. Step **4.1.2** will connect draft state to the forecasting adapter, and **4.1.3** will add input controls and BL labels. In 4.1.3, use these validation helpers to prevent invalid form values from reaching the chart calculation.
+```powershell
+npm test
+npm run build
+```
 
-No established baseline or persistence is introduced here; that is reserved for Iteration 4.3.
+## For future 4.1.3
 
-## Verify
+```ts
+const initialDraft = getInitialDraftBaselineConfig();
+const result = getIntegratedMockData(initialDraft);
+```
 
-`npm test`
-
-`npm run build`
-
-Expected total: **47** passing tests if all previous 40 tests are present. Only the uploaded four source files were available in this environment; full-project validation needs to run locally.
+When draft state changes, invoke `getIntegratedMockData(updatedDraft)` after validation. Avoid calling it with invalid temporary text edits. Naming in the UI should use **BL Optimistic**, **BL Realistic**, **BL Pessimistic**. This step neither creates nor preserves an *established* baseline; that is for 4.3.

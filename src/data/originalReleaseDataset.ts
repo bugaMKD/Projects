@@ -1,25 +1,35 @@
 import { historicalMock, mockRelease } from '../mockData';
 import type { TeamMember } from '../models/TeamMember';
-import { buildReleaseChartDataset } from '../services/releaseChartData';
+import { createDraftBaselineConfig } from '../models/DraftBaselineConfig';
+import type { DraftBaselineConfig } from '../models/DraftBaselineConfig';
+import { buildDraftBaselineDataset } from '../services/draftBaselineDataset';
 
 /**
- * Fixed original baseline used to preview the integrated forecast in Step 3.4.1.
- * DO NOT reuse `currentTeamMock` from Iteration 2: its days represent a
- * whole example release, not the effective days available PER SPRINT.
- * These mock input days are PER SPRINT; no per-member sprint forms yet.
+ * The default draft comes from the existing release. Actuals remain separate.
+ * React state will supply edited draft values in 4.1.3; no UI changes here.
+ */
+export function getInitialDraftBaselineConfig(): DraftBaselineConfig {
+  return createDraftBaselineConfig(mockRelease);
+}
+
+/**
+ * Static capacity per sprint. The Iteration 2 currentTeamMock represents
+ * release-level capacity and must not replace this sprint-level example.
  */
 const originalSprintMembers: TeamMember[] = [
   { id: 'baseline-se', name: 'SE capacity', role: 'SE', availableDays: 10, productivity: 1 },
   { id: 'baseline-qa', name: 'QA capacity', role: 'QA', availableDays: 5, productivity: 1 },
 ];
 
-/** Ready for Step 3.4.2 to import without changing any Recharts line keys. */
-export function getIntegratedMockData() {
-  return buildReleaseChartDataset({
-    originalScopeStoryPoints: mockRelease.scopeStoryPoints,
-    historical: historicalMock,
+/**
+ * Backwards compatible: existing App.tsx can still call without arguments.
+ * Supplying a valid draft changes only forecast inputs, not mock actuals.
+ */
+export function getIntegratedMockData(draft: DraftBaselineConfig = getInitialDraftBaselineConfig()) {
+  return buildDraftBaselineDataset(
+    draft,
+    historicalMock,
     originalSprintMembers,
-    variationPercent: 15,
-    completedSprintPoints: mockRelease.sprintCompletedPoints,
-  });
+    mockRelease.sprintCompletedPoints,
+  );
 }
