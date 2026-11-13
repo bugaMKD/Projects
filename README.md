@@ -1,20 +1,22 @@
-# Iteration 4.1.3 — Scope update on field exit
+# PSP Delivery Simulator — Iteration 4.3.3: Future SE/QA Capacity UI
 
-Small, targeted UX adjustment to the previously delivered Iteration 4.1.3 patch.
+## Files
 
-## Apply
+- Replace `src/App.tsx` (based on 4.2.3 validated UI).
+- Add `src/models/DraftSprintCapacityCommit.ts`.
+- Add `tests/draft-sprint-capacity-commit.test.mjs`.
 
-Replace only `src/App.tsx` in your current application with this file. All existing 4.1.1, 4.1.2, and 4.1.3 files must remain present. No dependencies or forecasting calculations have changed.
+Prerequisites: 4.3.1 model (`DraftSprintCapacityInput.ts`) and 4.3.2 adapter (`getIntegratedMockData(draft,historical,sprintMembers)`) already installed. No changes to forecasting calculations or chart integration services.
 
-## Behavior
+## UI
 
-- **Draft release scope (SP)**: type freely; calculations, chart, completion sprints, and metrics remain on the last committed scope while the field has focus. When you **click/tab outside** the field, or **press Enter**, a valid entered scope is applied in one update.
-- Invalid or empty scope: last valid forecast stays visible, and validation feedback appears. After correcting and leaving the field, the corrected scope applies.
-- Release name: updates immediately, as before.
-- Variation slider: updates immediately, as before. Changing it while scope has uncommitted text does **not** accidentally commit that scope.
-- Mock completed SP are never altered.
+A new section **Future SE/QA Capacity** follows **Historical Productivity**, before the metrics and burn-up chart. Supports multiple people of either role, adding/removing a person, editing names/roles, available days **per future sprint**, and productivity percentage 0–100. Current default is a synthetic SE with 10 days/100% and QA with 5 days/100%, preserving the previous baseline forecast values.
 
-## Verify locally
+Typing numeric input or a name changes only the form; on **blur or Enter**, a fully valid team is committed and the chart, completion forecasts, delivery metrics, and variance table recalculate together. A role selection or add/remove action is immediate. Invalid inputs preserve the last valid team and show errors. If the last team member is removed, the empty form reports an error and the previous valid team remains in use. Zero capacity is allowed and should show Not forecastable (it is different from invalid input).
+
+Actual completed sprint data and historical effective-day totals remain independent; no 'Establish Baseline' yet (planned 4.3.4). The four PSP allocation buckets are preserved untouched.
+
+## Validate locally
 
 ```powershell
 npm test
@@ -22,11 +24,8 @@ npm run build
 npm run dev
 ```
 
-Visual test:
-1. Starting from 240 SP, focus scope, clear it and type `100`: the chart should **not** change while typing.
-2. Click elsewhere or press Enter: three BL lines, completion sprints, and release metrics update together to 100 SP.
-3. Enter invalid/empty scope and leave the field: no chart crash and previously committed forecast stays visible.
-4. Change the variation slider, including while scope is mid-edit: variation updates from the committed scope; scope still waits for blur.
-5. Actual SP remain unchanged.
+Expected **109 tests** (101 + 8) if all prior tests are installed.
 
-Test count should remain the same as your current project: this patch only changes React event wiring and explanatory UI text. Full application build cannot be verified without the project's complete dependencies and source tree.
+Visual checks: modify available days, verify chart unchanged while typing then updates when leaving; try 75% productivity; add SE and QA and observe role bottleneck; clear a field and confirm last valid chart remains; change capacity to zero and confirm Not forecastable; remove a member and check new forecast; confirm historical inputs, scope on blur, and actual SP stay independent.
+
+This patch was tested with an isolated Node TypeScript fixture. The complete React app build must be verified in your own checkout.

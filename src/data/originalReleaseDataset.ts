@@ -1,35 +1,36 @@
 import { historicalMock, mockRelease } from '../mockData';
+import type { HistoricalData } from '../models/HistoricalData';
 import type { TeamMember } from '../models/TeamMember';
 import { createDraftBaselineConfig } from '../models/DraftBaselineConfig';
 import type { DraftBaselineConfig } from '../models/DraftBaselineConfig';
+import { DEFAULT_SPRINT_CAPACITY_MEMBERS } from '../models/DraftSprintCapacityInput';
 import { buildDraftBaselineDataset } from '../services/draftBaselineDataset';
 
-/**
- * The default draft comes from the existing release. Actuals remain separate.
- * React state will supply edited draft values in 4.1.3; no UI changes here.
- */
+/** The default release draft remains independent from sprint actuals. */
 export function getInitialDraftBaselineConfig(): DraftBaselineConfig {
   return createDraftBaselineConfig(mockRelease);
 }
 
 /**
- * Static capacity per sprint. The Iteration 2 currentTeamMock represents
- * release-level capacity and must not replace this sprint-level example.
+ * Iteration 4.3.2: per-sprint capacity is now a third, optional input.
+ * Defaults preserve the existing 4.1 and 4.2 call signatures and results.
+ *
+ * In 4.3.3 the UI will parse the member form with
+ * parseDraftSprintCapacityForm(), then supply the last valid TeamMember[].
+ * Historical effective days are totals from previous work; availableDays
+ * below are the planned days available to each role PER FUTURE SPRINT.
+ *
+ * This only calculates the DRAFT BL. No baseline is frozen until 4.3.4.
  */
-const originalSprintMembers: TeamMember[] = [
-  { id: 'baseline-se', name: 'SE capacity', role: 'SE', availableDays: 10, productivity: 1 },
-  { id: 'baseline-qa', name: 'QA capacity', role: 'QA', availableDays: 5, productivity: 1 },
-];
-
-/**
- * Backwards compatible: existing App.tsx can still call without arguments.
- * Supplying a valid draft changes only forecast inputs, not mock actuals.
- */
-export function getIntegratedMockData(draft: DraftBaselineConfig = getInitialDraftBaselineConfig()) {
+export function getIntegratedMockData(
+  draft: DraftBaselineConfig = getInitialDraftBaselineConfig(),
+  historical: HistoricalData = historicalMock,
+  sprintMembers: readonly TeamMember[] = DEFAULT_SPRINT_CAPACITY_MEMBERS,
+) {
   return buildDraftBaselineDataset(
     draft,
-    historicalMock,
-    originalSprintMembers,
+    historical,
+    [...sprintMembers],
     mockRelease.sprintCompletedPoints,
   );
 }
