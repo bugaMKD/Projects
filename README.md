@@ -1,31 +1,33 @@
-# PSP Delivery Simulator — Iteration 4.3.3: Future SE/QA Capacity UI
+# Iteration 4.3.4a — Established BL snapshot foundation
 
-## Files
+This is the first of two deliberately small stages for Iteration 4.3.4.
 
-- Replace `src/App.tsx` (based on 4.2.3 validated UI).
-- Add `src/models/DraftSprintCapacityCommit.ts`.
-- Add `tests/draft-sprint-capacity-commit.test.mjs`.
+## Apply
 
-Prerequisites: 4.3.1 model (`DraftSprintCapacityInput.ts`) and 4.3.2 adapter (`getIntegratedMockData(draft,historical,sprintMembers)`) already installed. No changes to forecasting calculations or chart integration services.
+Copy these **new** files into your existing validated 4.3.3 project:
 
-## UI
+- `src/models/EstablishedBaseline.ts`
+- `src/services/establishedBaselineDataset.ts`
+- `tests/established-baseline.test.mjs`
 
-A new section **Future SE/QA Capacity** follows **Historical Productivity**, before the metrics and burn-up chart. Supports multiple people of either role, adding/removing a person, editing names/roles, available days **per future sprint**, and productivity percentage 0–100. Current default is a synthetic SE with 10 days/100% and QA with 5 days/100%, preserving the previous baseline forecast values.
+Do not replace `App.tsx` yet. The Establish Baseline button/locking UX will follow in **4.3.4b** after this data contract is validated. No changes to existing calculations.
 
-Typing numeric input or a name changes only the form; on **blur or Enter**, a fully valid team is committed and the chart, completion forecasts, delivery metrics, and variance table recalculate together. A role selection or add/remove action is immediate. Invalid inputs preserve the last valid team and show errors. If the last team member is removed, the empty form reports an error and the previous valid team remains in use. Zero capacity is allowed and should show Not forecastable (it is different from invalid input).
+## What the model guarantees
 
-Actual completed sprint data and historical effective-day totals remain independent; no 'Establish Baseline' yet (planned 4.3.4). The four PSP allocation buckets are preserved untouched.
+- Establishment copies and freezes the **committed release configuration**, historical productivity, team member capacity and **three forecast lines, completion sprint values and throughput**.
+- The saved baseline does **not** contain actual delivered SP; actuals can be merged independently at any time.
+- The baseline stays fixed even if the editable draft objects are later mutated.
+- An active release can continue delivering **beyond the pessimistic baseline completion sprint**. Forecast lines stay flat at original scope while actuals progress.
+- A mismatching release scope is rejected, and invalid actuals are rejected.
+- This is an **in-memory** snapshot model; persistence between browser reloads is not yet implemented. We should resolve persistence alongside the UI in 4.3.4b rather than falsely present a reload-sensitive snapshot as durable.
 
-## Validate locally
+## Validate
 
-```powershell
+```
 npm test
 npm run build
-npm run dev
 ```
 
-Expected **109 tests** (101 + 8) if all prior tests are installed.
+Expected test count **118** (109 prior + 9 new) if the prior tests are all present.
 
-Visual checks: modify available days, verify chart unchanged while typing then updates when leaving; try 75% productivity; add SE and QA and observe role bottleneck; clear a field and confirm last valid chart remains; change capacity to zero and confirm Not forecastable; remove a member and check new forecast; confirm historical inputs, scope on blur, and actual SP stay independent.
-
-This patch was tested with an isolated Node TypeScript fixture. The complete React app build must be verified in your own checkout.
+The nine new tests were run successfully in a Node TypeScript test fixture, and an isolated TypeScript compile succeeded. The full project build still requires local verification.
