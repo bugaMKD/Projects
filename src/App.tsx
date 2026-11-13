@@ -27,9 +27,19 @@ export default function App() {
   const parsed = useMemo(() => parseDraftBaselineFormInput(form), [form]);
   const data = useMemo(() => getIntegratedMockData(validDraft), [validDraft]);
 
+  // Scope is edited as text and committed only when the field loses focus.
+  // Other controls can update the forecast immediately, but must never
+  // accidentally commit a partially typed scope value.
   const updateForm = (nextForm: typeof form) => {
     setForm(nextForm);
-    const next = parseDraftBaselineFormInput(nextForm);
+    const next = parseDraftBaselineFormInput({
+      ...nextForm,
+      scopeText: String(validDraft.scopeStoryPoints),
+    });
+    if (next.config) setValidDraft(next.config);
+  };
+  const commitScope = () => {
+    const next = parseDraftBaselineFormInput(form);
     if (next.config) setValidDraft(next.config);
   };
   const formHasErrors = Object.keys(parsed.errors).length > 0;
@@ -42,7 +52,7 @@ export default function App() {
     <main className="container">
       <div className="page-intro"><div><div className="eyebrow">Release intelligence / Overview</div><h1>{validDraft.releaseName}</h1><p>Experiment with the draft baseline using the fixed mock historical productivity and team capacity. Completed sprint results stay independent.</p></div><div className="sprint-pill"><span className="status-dot"/> Completed sprint {count}</div></div>
       <section className="panel" aria-label="Draft BL release configuration" style={{marginBottom:20}}>
-        <div className="section-heading"><div className="eyebrow">00 / Draft baseline · Not established</div><h2>Release Configuration</h2><p>Change the draft inputs to immediately preview the three BL forecasts. Establishing a baseline is planned for Iteration 4.3.</p></div>
+        <div className="section-heading"><div className="eyebrow">00 / Draft baseline · Not established</div><h2>Release Configuration</h2><p>Edit the scope, then leave the field (or press Enter) to update the three BL forecasts. Variation updates immediately. Establishing a baseline is planned for Iteration 4.3.</p></div>
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(190px, 1fr))',gap:18,alignItems:'start'}}>
           <label style={{display:'grid',gap:7,fontSize:13,fontWeight:600}}>
             Release name
@@ -52,7 +62,9 @@ export default function App() {
           </label>
           <label style={{display:'grid',gap:7,fontSize:13,fontWeight:600}}>
             Draft release scope (SP)
-            <input aria-label="Draft release scope (SP)" type="number" min="0.01" step="any" value={form.scopeText} onChange={event => updateForm({...form,scopeText:event.target.value})}
+            <input aria-label="Draft release scope (SP)" type="number" min="0.01" step="any" value={form.scopeText} onChange={event => setForm(current => ({...current,scopeText:event.target.value}))}
+              onBlur={commitScope}
+              onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); }}
               aria-invalid={!!parsed.errors.scopeText} style={{padding:'10px 12px',border:'1px solid #cbd5e1',borderRadius:8,font:'inherit',width:'100%',boxSizing:'border-box'}} />
             {parsed.errors.scopeText && <small role="alert" style={{color:'#b42318'}}>{parsed.errors.scopeText}</small>}
           </label>
@@ -71,7 +83,7 @@ export default function App() {
         <Metric title="Remaining backlog" value={`${data.remaining} SP`} detail="Scope minus delivered" />
         <Metric title="Against realistic plan" value={realGap === null ? 'N/A' : `${realGap > 0 ? '+' : ''}${formatStoryPoints(realGap)} SP`} detail={realGap === null ? 'BL forecast unavailable' : realGap >= 0 ? 'Ahead of draft BL' : 'Behind draft BL'} />
       </section>
-      <section className="panel chart-panel"><SectionHeading eyebrow="01 / Draft BL vs reality" title="Release burn-up" description="All three draft BL forecast lines begin at Start. Editing inputs recalculates these lines; actual delivery stays separate." />
+      <section className="panel chart-panel"><SectionHeading eyebrow="01 / Draft BL vs reality" title="Release burn-up" description="All three draft BL lines begin at Start. Scope changes apply when you leave the field; actual delivery stays separate." />
         <div className="chart-wrap"><ResponsiveContainer width="100%" height="100%"><LineChart data={data.chartData} margin={{top:16,right:16,bottom:12,left:0}}>
           <CartesianGrid stroke="#e8edf4" strokeDasharray="3 5" vertical={false}/>
           <XAxis dataKey="sprint" tickLine={false} axisLine={false} tick={{fill:'#64738b',fontSize:12}} dy={10}/>
@@ -85,7 +97,7 @@ export default function App() {
           <Line name="BL Pessimistic" type="linear" dataKey="pessimistic" stroke="#d79b34" strokeWidth={2.5} dot={false} isAnimationActive={false}/>
           <Line name="Actual delivered" type="linear" dataKey="actual" stroke="#15213b" strokeWidth={3.5} dot={{r:3.5,fill:'#15213b',strokeWidth:1}} connectNulls={false} isAnimationActive={false}/>
         </LineChart></ResponsiveContainer></div>
-        <div className="chart-note"><span className="info-circle">i</span> Draft BL forecasts are calculated using fixed mock historical productivity and per-sprint capacity. Actuals never recalculate the draft; input edits do.</div>
+        <div className="chart-note"><span className="info-circle">i</span> Draft BL forecasts use fixed mock historical productivity and per-sprint capacity. Scope applies on field exit; actuals never recalculate the draft.</div>
       </section>
       <div className="lower-grid">
         <section className="panel"><SectionHeading eyebrow="02 / Capacity planning · Preserved from v1" title="PSP allocation" description="Four original mock buckets shown unchanged. Allocation math is postponed to a later iteration." />
@@ -99,7 +111,7 @@ export default function App() {
             {label:'BL Realistic',sprint:data.forecastFinishes.realistic,rate:data.scenarioThroughputs.realistic,color:'#3778e6'},
             {label:'BL Pessimistic',sprint:data.forecastFinishes.pessimistic,rate:data.scenarioThroughputs.pessimistic,color:'#d79b34'}
           ].map(f=><div className="forecast-row" key={f.label}><span className="forecast-dot" style={{background:f.color}}/><span className="forecast-name">{f.label}</span><span className="forecast-rate">{formatStoryPoints(f.rate)} SP/sprint</span><strong>{formatFinish(f.sprint)}</strong></div>)}</div>
-          <div className="divider"/><p className="outlook-note">These completion estimates are a draft preview. Changing scope or variation recalculates them; actual delivery does not.</p>
+          <div className="divider"/><p className="outlook-note">These completion estimates are a draft preview. Scope changes apply on field exit; variation updates immediately. Actual delivery does not recalculate them.</p>
         </section>
       </div>
       <section className="panel sprint-panel"><SectionHeading eyebrow="04 / Actuals · Preserved from v1" title="Completed sprint history" description="Mock delivered story points per sprint; cumulative totals feed the burn-up."/>

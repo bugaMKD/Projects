@@ -1,32 +1,20 @@
-# PSP Delivery Simulator — 4.1.3 Draft BL UI
+# Iteration 4.1.3 — Scope update on field exit
 
-## Prerequisites
-
-Apply and validate the earlier 4.1.1 and 4.1.2 patches first (54 tests passed in your local application). This patch is based on the **App.tsx** you uploaded before 4.1.1/4.1.2. It relies on `getInitialDraftBaselineConfig()` and `getIntegratedMockData(draft)` introduced in 4.1.2.
+Small, targeted UX adjustment to the previously delivered Iteration 4.1.3 patch.
 
 ## Apply
 
-Copy these files into the same paths in your existing project:
+Replace only `src/App.tsx` in your current application with this file. All existing 4.1.1, 4.1.2, and 4.1.3 files must remain present. No dependencies or forecasting calculations have changed.
 
-- **Replace** `src/App.tsx`
-- **Add** `src/models/DraftBaselineInput.ts`
-- **Add** `tests/draft-baseline-input.test.mjs`
+## Behavior
 
-No other file is overwritten. No new dependencies. The calculation services are unchanged.
+- **Draft release scope (SP)**: type freely; calculations, chart, completion sprints, and metrics remain on the last committed scope while the field has focus. When you **click/tab outside** the field, or **press Enter**, a valid entered scope is applied in one update.
+- Invalid or empty scope: last valid forecast stays visible, and validation feedback appears. After correcting and leaving the field, the corrected scope applies.
+- Release name: updates immediately, as before.
+- Variation slider: updates immediately, as before. Changing it while scope has uncommitted text does **not** accidentally commit that scope.
+- Mock completed SP are never altered.
 
-## Functionality
-
-- Editable release name; editing does not change calculations.
-- Editable draft scope; changing it recalculates all three BL lines and completion sprints.
-- Forecast variation slider, 0–30% in 5% increments (default 15%). Changing it affects BL Optimistic and BL Pessimistic, not BL Realistic.
-- Existing historical inputs and per-sprint SE/QA capacity remain mocked (4.2 and 4.3 will make them editable).
-- The chart, completion panel and actuals variance table use **one** calculated dataset.
-- Labels consistently use Draft BL; chart starts at Start; original lines flatten at scope; actuals can continue past the pessimistic finish.
-- All actual delivery SP are separate and unchanged by draft inputs.
-- Blank/invalid release name or scope does not send an invalid draft into the forecast generator. Chart retains the last valid draft with a visible validation warning, and resumes updating when all fields are valid.
-- Draft values are in component state only; reloading resets to defaults. No established/frozen baseline until 4.3.
-
-## Validation
+## Verify locally
 
 ```powershell
 npm test
@@ -34,19 +22,11 @@ npm run build
 npm run dev
 ```
 
-Expected **62 passing tests** if the 54 previously reported tests are present, plus a successful build.
+Visual test:
+1. Starting from 240 SP, focus scope, clear it and type `100`: the chart should **not** change while typing.
+2. Click elsewhere or press Enter: three BL lines, completion sprints, and release metrics update together to 100 SP.
+3. Enter invalid/empty scope and leave the field: no chart crash and previously committed forecast stays visible.
+4. Change the variation slider, including while scope is mid-edit: variation updates from the committed scope; scope still waits for blur.
+5. Actual SP remain unchanged.
 
-Visual checks:
-1. Default page still shows Release Alpha, 240 SP, ±15%, plus all existing sections.
-2. Change release name: heading updates, forecast numbers do not.
-3. Change scope to 100 SP: three BL lines and completion sprints shorten; actual SP history remains the same.
-4. Change variation to ±20%: BL optimistic and pessimistic move; BL realistic stays the same.
-5. Clear scope: validation message appears without chart error; restore scope and chart updates.
-6. Use scope smaller than actual delivered and verify actuals remain visible and BL lines flatten at new scope.
-7. Refresh browser: draft resets to default values (as designed for 4.1).
-
-## Validation note
-
-Eight new isolated input-validation tests were executed successfully and the utility passed an isolated TypeScript type-check. The full React application and all earlier tests are available only in your local project, so the full test/build results must be confirmed there.
-
-Suggested commit: `feat: add editable draft BL release configuration UI`
+Test count should remain the same as your current project: this patch only changes React event wiring and explanatory UI text. Full application build cannot be verified without the project's complete dependencies and source tree.
