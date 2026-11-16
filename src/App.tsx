@@ -11,6 +11,7 @@ import { newWorkspaceSession, openWorkspaceSession, editWorkspaceSession, persis
 import ReleaseWorkspace from './ReleaseWorkspace';
 import { duplicateReleaseToNewSession } from './services/DuplicateRelease';
 import { appendCompletedSprint } from './services/ActualSprintEntry';
+import { validateSprintEditPreview } from './services/EditSprintActuals';
 
 /** 5.4.2: the app shell selects one persisted or new release; the simulator owns editable form text. */
 export default function App() {
@@ -133,6 +134,15 @@ export default function App() {
     refresh();
   };
 
+  const saveActualChanges = (preview: readonly number[]) => {
+    if (!repository || !session) throw new Error('No active release or storage repository.');
+    // 5.4.5c: explicit save only, preserving sprint count and established BL.
+    const validated = validateSprintEditPreview(session.saved.completedSprintPoints, preview);
+    const updated = persistWorkspaceActuals(repository, session, new Date().toISOString(), validated);
+    setSession(updated);
+    refresh();
+  };
+
   const navButton: React.CSSProperties = { padding: '11px 18px', borderRadius: 8, border: '1px solid #c9d4e2', cursor: 'pointer', font: 'inherit' };
   return <div style={{ minHeight: '100vh', background: '#f5f7fb', color: '#18273d' }}>
     <div style={{ background: '#fff', borderBottom: '1px solid #e0e6ef' }}>
@@ -158,6 +168,7 @@ export default function App() {
       onEstablishBaseline={establish}
       onDirtyChange={onDirtyChange}
       onRecordSprint={recordSprint}
+      onSaveActualChanges={saveActualChanges}
     /> : <main style={{ maxWidth: 1100, margin: '30px auto', padding: 24 }}>
       Choose a saved release or create a new release in Release Management.
     </main>}

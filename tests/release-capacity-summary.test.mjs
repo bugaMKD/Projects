@@ -16,7 +16,7 @@ test('5.4.3 historical totals and per-day rates are release-specific',()=>{
 });
 test('both roles tie at realistic 10 SP/sprint in default scenario',()=>{
   assert.equal(summary().realisticStoryPointsPerSprint,10);
-  assert.equal(summary().limitingRole,'Both');
+  assert.equal(summary().limitingRole,'Balanced');
 });
 test('QA limiting role when QA available days decrease',()=>{
   const result=summary(history,[team[0],{...team[1],availableDays:2}]);
@@ -61,4 +61,10 @@ test('calculation never mutates supplied release inputs',()=>{
   const before=JSON.stringify({h,members});
   summary(h,members);
   assert.equal(JSON.stringify({h,members}),before);
+});
+
+test('zero throughput for both roles is no delivery capacity, not balanced',()=>{
+  const zero=summary(history,[{...team[0],availableDays:0},{...team[1],availableDays:0}]);
+  assert.equal(zero.limitingRole,'No delivery capacity');
+  assert.equal(zero.realisticStoryPointsPerSprint,0);
 });

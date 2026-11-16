@@ -18,14 +18,14 @@ test('5.4.2: release workspace restores configuration from selected session', ()
   assert.match(workspace, /createDraftSprintCapacityForm\(initial\.sprintMembers\)/);
 });
 test('5.4.2: baseline uses saved forecast snapshot rather than recomputing established BL', () => {
-  assert.match(workspace, /buildEstablishedBaselineDataset\(established, savedActuals\)/);
+  assert.match(workspace, /buildEstablishedBaselineDataset\(established, completedActuals\)/);
   assert.match(workspace, /establishBaseline\(validDraft, validHistorical, validSprintMembers, draftData\)/);
   assert.match(app, /persistWorkspaceBaseline\(repository,/);
 });
 test('5.4.2: Save Draft is an explicit repository action', () => {
   assert.match(workspace, /onClick=\{saveDraft\}/);
   assert.match(app, /persistWorkspaceDraft\(repository,/);
-  assert.match(workspace, /disabled=\{!eligibility\.allowed\} onClick=\{saveDraft\}/);
+  assert.match(workspace, /disabled=\{!eligibility\.allowed \|\| actualPreviewDirty \|\| pendingSprintCorrection\} onClick=\{saveDraft\}/);
 });
 test('5.4.2: unsaved navigation changes warn before leaving', () => {
   assert.match(app, /const acceptLeave/);

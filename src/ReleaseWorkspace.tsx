@@ -6,6 +6,7 @@ import type { ReleaseInputs } from './models/ReleaseRecord';
 import type { WorkspaceSession } from './services/ReleaseWorkspaceOperations';
 import { hasUnsavedDraftChanges } from './services/ReleaseWorkspaceOperations';
 import { parseCompletedSprintPoints } from './services/ActualSprintEntry';
+import { previewSprintEdit, hasSprintEditChanges } from './services/EditSprintActuals';
 import { createDraftBaselineFormInput, parseDraftBaselineFormInput } from './models/DraftBaselineInput';
 import { createDraftHistoricalFormInput, parseDraftHistoricalFormInput } from './models/DraftHistoricalInput';
 import { commitDraftHistoricalForm } from './models/DraftHistoricalCommit';
@@ -36,15 +37,22 @@ export interface ReleaseWorkspaceProps {
   onEstablishBaseline: (inputs: ReleaseInputs, baseline: EstablishedBaseline) => void;
   onDirtyChange: (dirty: boolean) => void;
   onRecordSprint: (pointsText: string) => void;
+  onSaveActualChanges: (completedSprintPoints: readonly number[]) => void;
 }
 
-export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBaseline, onDirtyChange, onRecordSprint }: ReleaseWorkspaceProps) {
+export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBaseline, onDirtyChange, onRecordSprint, onSaveActualChanges }: ReleaseWorkspaceProps) {
   const initial = session.committed;
   const savedActuals = session.saved.completedSprintPoints;
   const established = session.saved.establishedBaseline;
   const [actionError, setActionError] = useState<string | null>(null);
   const [sprintPointsText, setSprintPointsText] = useState('');
   const [sprintError, setSprintError] = useState<string | null>(null);
+  const [editingSprintIndex, setEditingSprintIndex] = useState<number | null>(null);
+  const [editingSprintText, setEditingSprintText] = useState('');
+  const [editError, setEditError] = useState<string | null>(null);
+  // Multiple applied corrections can be previewed without persisting.
+  const [actualPreview, setActualPreview] = useState<number[] | null>(null);
+  const completedActuals = actualPreview ?? savedActuals;
   // The form is free to hold temporarily invalid text, but only a valid draft
   // is ever sent to the validated forecasting engine.
   const [form, setForm] = useState(() => createDraftBaselineFormInput(initial.release));
@@ -64,11 +72,11 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
     historical: validHistorical,
     originalSprintMembers: validSprintMembers,
     variationPercent: validDraft.variationPercent,
-    completedSprintPoints: savedActuals,
-  }), [validDraft, validHistorical, validSprintMembers, savedActuals]);
+    completedSprintPoints: completedActuals,
+  }), [validDraft, validHistorical, validSprintMembers, completedActuals]);
   const data = useMemo(() => established
-    ? buildEstablishedBaselineDataset(established, savedActuals)
-    : draftData, [established, savedActuals, draftData]);
+    ? buildEstablishedBaselineDataset(established, completedActuals)
+    : draftData, [established, completedActuals, draftData]);
   const displayedRelease = established?.release ?? validDraft;
   const eligibility = getBaselineEstablishmentEligibility(form, validDraft, historicalForm, validHistorical, capacityForm, validSprintMembers);
   const currentInputs = useMemo<ReleaseInputs>(() => ({
@@ -77,9 +85,37 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
   const dirty = !established && (
     hasUnsavedDraftChanges({ ...session, committed: currentInputs }) || !eligibility.allowed
   );
+  const actualPreviewDirty = hasSprintEditChanges(savedActuals, actualPreview);
   const pendingSprintEntry = sprintPointsText.trim() !== '';
-  useEffect(() => { onDirtyChange(dirty || pendingSprintEntry); }, [dirty, pendingSprintEntry, onDirtyChange]);
+  const pendingSprintCorrection = editingSprintIndex !== null;
+  const canEditActuals = session.persisted && !dirty;
+  const applySprintPreview = () => {
+    if (editingSprintIndex === null) return;
+    try {
+      const next = previewSprintEdit(completedActuals, editingSprintIndex, editingSprintText);
+      setActualPreview(hasSprintEditChanges(savedActuals, next) ? next : null);
+      setEditingSprintIndex(null);
+      setEditingSprintText('');
+      setEditError(null);
+    } catch (error) { setEditError(error instanceof Error ? error.message : 'Invalid sprint correction.'); }
+  };
+  const discardSprintPreview = () => {
+    setActualPreview(null);
+    setEditingSprintIndex(null);
+    setEditingSprintText('');
+    setEditError(null);
+  };
+  const saveSprintCorrections = () => {
+    if (!actualPreviewDirty || !actualPreview || !canEditActuals || pendingSprintCorrection) return;
+    try {
+      onSaveActualChanges(actualPreview);
+      setActualPreview(null);
+      setEditError(null);
+    } catch (error) { setEditError(error instanceof Error ? error.message : 'Unable to save sprint changes.'); }
+  };
+  useEffect(() => { onDirtyChange(dirty || pendingSprintEntry || pendingSprintCorrection || actualPreviewDirty); }, [dirty, pendingSprintEntry, pendingSprintCorrection, actualPreviewDirty, onDirtyChange]);
   const recordSprint = () => {
+    if (actualPreviewDirty || pendingSprintCorrection) { setSprintError('Save or discard the sprint correction before adding a new sprint.'); return; }
     if (parseCompletedSprintPoints(sprintPointsText) === null) {
       setSprintError('Enter a valid non-negative completed SP value.');
       return;
@@ -93,12 +129,12 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
     }
   };
   const saveDraft = () => {
-    if (established || !eligibility.allowed) return;
+    if (established || !eligibility.allowed || actualPreviewDirty || pendingSprintCorrection) return;
     try { onSaveDraft(currentInputs); setActionError(null); }
     catch (error) { setActionError(error instanceof Error ? error.message : 'Unable to save draft.'); }
   };
   const establish = () => {
-    if (established || !eligibility.allowed) return;
+    if (established || !eligibility.allowed || actualPreviewDirty || pendingSprintCorrection) return;
     try {
       const snapshot = establishBaseline(validDraft, validHistorical, validSprintMembers, draftData);
       onEstablishBaseline(currentInputs, snapshot);
@@ -150,7 +186,7 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
     if (next.config) setValidDraft(next.config);
   };
   const formHasErrors = Object.keys(parsed.errors).length > 0;
-  const count = savedActuals.length;
+  const count = completedActuals.length;
   const realisticAtCurrentSprint = data.originalAtCurrentSprint.realistic;
   const realGap = realisticAtCurrentSprint === null ? null : data.completed - realisticAtCurrentSprint;
   const totalAllocation = capacityBuckets.reduce((sum,b)=>sum+b.percent,0);
@@ -254,11 +290,11 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
         <div className="section-heading"><div className="eyebrow">Baseline status</div><h2>{established ? 'Established BL' : 'Draft BL'}</h2>
           <p>{established ? 'Baseline inputs and the BL optimistic, realistic and pessimistic lines are locked. Actual delivery remains independent.' : 'Review and apply all release, historical and capacity edits before establishing the baseline.'}</p></div>
         {!established && <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
-          <button type="button" disabled={!eligibility.allowed} onClick={saveDraft}
+          <button type="button" disabled={!eligibility.allowed || actualPreviewDirty || pendingSprintCorrection} onClick={saveDraft}
             style={{padding:'11px 18px',border:'1px solid #2563eb',borderRadius:8,color:'#2563eb',background:'#fff',fontWeight:700,cursor:eligibility.allowed?'pointer':'not-allowed'}}>
             Save Draft
           </button>
-          <button type="button" disabled={!eligibility.allowed} onClick={establish}
+          <button type="button" disabled={!eligibility.allowed || actualPreviewDirty || pendingSprintCorrection} onClick={establish}
           style={{padding:'11px 18px',border:0,borderRadius:8,background:eligibility.allowed?'#2563eb':'#94a3b8',color:'white',fontWeight:700,cursor:eligibility.allowed?'pointer':'not-allowed'}}>
           Establish Baseline
           </button>
@@ -313,11 +349,11 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
             <input type="number" min="0" step="any" aria-label="Completed story points for next sprint"
               value={sprintPointsText} onChange={event => {setSprintPointsText(event.target.value);setSprintError(null);}}
               onKeyDown={event => {if(event.key==='Enter')recordSprint();}}
-              disabled={!session.persisted || dirty}
+              disabled={!session.persisted || dirty || actualPreviewDirty || pendingSprintCorrection}
               style={{padding:'10px 12px',border:'1px solid #cbd5e1',borderRadius:8,width:220}} />
           </label>
           <button type="button" onClick={recordSprint}
-            disabled={!session.persisted || dirty || parseCompletedSprintPoints(sprintPointsText) === null}
+            disabled={!session.persisted || dirty || actualPreviewDirty || pendingSprintCorrection || parseCompletedSprintPoints(sprintPointsText) === null}
             style={{padding:'11px 18px',border:0,borderRadius:8,background:'#2563eb',color:'#fff',fontWeight:700,cursor:'pointer'}}>
             Save Sprint {savedActuals.length + 1}
           </button>
@@ -326,15 +362,33 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
           {session.persisted ? 'Save pending Draft BL changes before recording actuals.' : 'Save Draft or Establish Baseline before recording actuals.'}
         </p>}
         {sprintError && <p role="alert" style={{color:'#b42318'}}>{sprintError}</p>}
-        <div className="sprint-table-wrap"><table><thead><tr><th>Sprint</th><th>Completed this sprint</th><th>Cumulative completed</th><th>BL Realistic</th><th>Variance vs BL Realistic</th></tr></thead><tbody>{savedActuals.map((points,i)=>{
-          const cumulative=savedActuals.slice(0,i+1).reduce((s,v)=>s+v,0);
+        {actualPreviewDirty && <div role="status" style={{padding:'12px 14px',margin:'12px 0',borderRadius:8,background:'#fff6dc',border:'1px solid #e7d3a2'}}>
+          <strong>Unsaved actuals preview</strong> — the chart, totals and variances reflect your proposed corrections. Saved values are unchanged.
+          <div style={{display:'flex',gap:8,marginTop:10}}>
+            <button type="button" disabled={!canEditActuals || pendingSprintCorrection} onClick={saveSprintCorrections}>Save Changes</button>
+            <button type="button" onClick={discardSprintPreview}>Discard Preview</button>
+          </div>
+        </div>}
+        {editError && <p role="alert" style={{color:'#b42318'}}>{editError}</p>}
+        <div className="sprint-table-wrap"><table><thead><tr><th>Sprint</th><th>Completed this sprint</th><th>Cumulative completed</th><th>BL Realistic</th><th>Variance vs BL Realistic</th><th>Action</th></tr></thead><tbody>{completedActuals.map((points,i)=>{
+          const cumulative=completedActuals.slice(0,i+1).reduce((s,v)=>s+v,0);
           const expected=data.chartData[i+1]?.realistic ?? null;
           const diff=expected === null ? null : cumulative-expected;
-          return <tr key={i}><td>Sprint {i+1}</td><td>{points} SP</td><td>{cumulative} SP</td><td>{expected === null ? 'N/A' : `${formatStoryPoints(expected)} SP`}</td><td className={diff === null ? '' : diff >= 0 ? 'positive' : 'negative'}>{diff === null ? 'N/A' : `${diff > 0 ? '+' : ''}${formatStoryPoints(diff)} SP`}</td></tr>;
+          return <tr key={i}><td>Sprint {i+1}</td><td>
+            {editingSprintIndex === i ? <input aria-label={`Edit Sprint ${i+1} completed SP`} type="number" min="0" step="any"
+              value={editingSprintText} onChange={event => {setEditingSprintText(event.target.value);setEditError(null);}}
+              style={{width:110,padding:7}} /> : `${formatStoryPoints(points)} SP`}
+          </td><td>{formatStoryPoints(cumulative)} SP</td><td>{expected === null ? 'N/A' : `${formatStoryPoints(expected)} SP`}</td>
+            <td className={diff === null ? '' : diff >= 0 ? 'positive' : 'negative'}>{diff === null ? 'N/A' : `${diff > 0 ? '+' : ''}${formatStoryPoints(diff)} SP`}</td>
+            <td>{editingSprintIndex === i ? <div style={{display:'flex',gap:6}}>
+              <button type="button" disabled={!canEditActuals || parseCompletedSprintPoints(editingSprintText) === null} onClick={applySprintPreview}>Apply Preview</button>
+              <button type="button" onClick={() => {setEditingSprintIndex(null);setEditError(null);}}>Cancel</button>
+            </div> : <button type="button" disabled={!canEditActuals || (editingSprintIndex !== null && editingSprintIndex !== i) || pendingSprintEntry}
+              onClick={() => {setEditingSprintIndex(i);setEditingSprintText(String(points));setEditError(null);}}>Edit</button>}</td></tr>;
         })}</tbody></table></div>
       </section>
       <ReleaseHistoricalCapacityView historical={established?.historical ?? validHistorical} sprintMembers={established?.sprintMembers ?? validSprintMembers} established={!!established}/>
-      <footer>PSP Delivery Simulator · Iteration 5.4.5 · Saved sprint delivery and release-specific capacity</footer>
+      <footer>PSP Delivery Simulator · Iteration 5.4.5 · Sprint actuals preview and release-specific capacity</footer>
     </main>
   </div>;
 }

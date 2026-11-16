@@ -15,7 +15,7 @@ export interface ReleaseCapacitySummary {
   historicalDeliveredStoryPoints: number;
   se: RoleCapacitySummary;
   qa: RoleCapacitySummary;
-  limitingRole: 'SE' | 'QA' | 'Both' | 'Unavailable';
+  limitingRole: 'SE' | 'QA' | 'Balanced' | 'No delivery capacity' | 'Unavailable';
   realisticStoryPointsPerSprint: number | null;
 }
 
@@ -41,7 +41,8 @@ export function summarizeReleaseCapacity(historical: HistoricalData, members: re
   const qaPotential = qa.potentialStoryPointsPerSprint;
   const unavailable = sePotential === null || qaPotential === null;
   const limitingRole = unavailable ? 'Unavailable'
-    : Math.abs(sePotential - qaPotential) <= 1e-9 ? 'Both'
+    : sePotential === 0 && qaPotential === 0 ? 'No delivery capacity'
+    : Math.abs(sePotential - qaPotential) <= 1e-9 ? 'Balanced'
     : sePotential < qaPotential ? 'SE' : 'QA';
   return {
     historicalDeliveredStoryPoints: historical.deliveredStoryPoints,

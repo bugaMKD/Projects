@@ -37,8 +37,8 @@ export function ReleaseHistoricalCapacityView({ historical, sprintMembers, estab
     </div>
     <div style={{display:'flex',flexWrap:'wrap',gap:18,marginTop:18}}>
       <div><strong>Realistic capacity:</strong> {fmt(summary.realisticStoryPointsPerSprint)} SP/sprint</div>
-      <div><strong>Limiting role:</strong> {summary.limitingRole}</div>
+      <div><strong>Capacity balance:</strong> {summary.limitingRole === 'SE' ? 'SE limiting' : summary.limitingRole === 'QA' ? 'QA limiting' : summary.limitingRole}</div>
     </div>
-    <p style={{fontSize:12,color:'#64738b',marginTop:10}}>Effective future days = available days × productivity. The realistic delivery rate is constrained by the lower SE/QA potential. This panel is read-only; edit assumptions in the configuration sections above.</p>
+    <p style={{fontSize:12,color:'#64738b',marginTop:10}}>Effective future days = available days × productivity. The realistic delivery rate is constrained by the lower SE/QA potential. When potentials match above zero, capacity is balanced relative to historical productivity: neither role is the bottleneck. This panel is read-only; edit assumptions in the configuration sections above.</p>
   </section>;
 }

@@ -18,5 +18,5 @@ test('new display component does not import mock data or forecasting services',(
 test('capacity panel explicitly distinguishes historical totals and future per-sprint effort',()=>{
   assert.match(component,/Historical SE effective days/);
   assert.match(component,/Effective days \/ sprint/);
-  assert.match(component,/Limiting role/);
+  assert.match(component,/Capacity balance/);
 });
