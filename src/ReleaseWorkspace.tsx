@@ -10,7 +10,7 @@ import { createDraftHistoricalFormInput, parseDraftHistoricalFormInput } from '.
 import { commitDraftHistoricalForm } from './models/DraftHistoricalCommit';
 import { createDraftSprintCapacityForm, parseDraftSprintCapacityForm } from './models/DraftSprintCapacityInput';
 import { addDraftSprintMember, commitDraftSprintCapacityForm, removeDraftSprintMember } from './models/DraftSprintCapacityCommit';
-import { HistoricalCapacityView } from './components/HistoricalCapacityView';
+import { ReleaseHistoricalCapacityView } from './components/ReleaseHistoricalCapacityView';
 import { establishBaseline, type EstablishedBaseline } from './models/EstablishedBaseline';
 import { buildEstablishedBaselineDataset } from './services/establishedBaselineDataset';
 import { getBaselineEstablishmentEligibility } from './models/BaselineEstablishmentEligibility';
@@ -296,8 +296,8 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
           return <tr key={i}><td>Sprint {i+1}</td><td>{points} SP</td><td>{cumulative} SP</td><td>{expected === null ? 'N/A' : `${formatStoryPoints(expected)} SP`}</td><td className={diff === null ? '' : diff >= 0 ? 'positive' : 'negative'}>{diff === null ? 'N/A' : `${diff > 0 ? '+' : ''}${formatStoryPoints(diff)} SP`}</td></tr>;
         })}</tbody></table></div>
       </section>
-      <HistoricalCapacityView/>
-      <footer>PSP Delivery Simulator · Iteration 5.4.2 · Saved release workspace · Established BL persistence</footer>
+      <ReleaseHistoricalCapacityView historical={established?.historical ?? validHistorical} sprintMembers={established?.sprintMembers ?? validSprintMembers} established={!!established}/>
+      <footer>PSP Delivery Simulator · Iteration 5.4.3 · Release-specific historical productivity and capacity</footer>
     </main>
   </div>;
 }
