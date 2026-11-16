@@ -1,0 +1,8 @@
+{
+  "seCapacity": 15,
+  "qaCapacity": 5,
+  "avgVelocity": 20,
+  "optimisticVariance": 0.15,
+  "conservativeVariance": 0.15,
+  "contingency": 0.15
+}

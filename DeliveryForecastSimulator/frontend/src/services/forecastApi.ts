@@ -1,0 +1,2 @@
+import type {ForecastRequest,ForecastResponse} from '../models';
+export async function calculateForecast(request:ForecastRequest):Promise<ForecastResponse>{const r=await fetch('/api/forecast',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(request)});if(!r.ok){const e=await r.json().catch(()=>({message:'Forecast failed'}));throw new Error(e.message??'Forecast failed');}return r.json();}

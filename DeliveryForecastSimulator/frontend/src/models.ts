@@ -1,0 +1,3 @@
+export interface ForecastRequest {projectName:string;startDate:string;totalScopeSp:number;capacityPerSprint:number;sprintLengthDays:number;qaZeroSprint:number;optimisticAdjustment:number;conservativeAdjustment:number;developers:number;qaEngineers:number;productiveCapacityPercent:number;nonWorkingDates:string[];}
+export interface SprintForecast {sprintNumber:number;sprintEndDate:string;deliveredPoints:number;cumulativePoints:number;remainingPoints:number;}
+export interface ForecastResponse {projectName:string;optimisticDate:string;expectedDate:string;conservativeDate:string;requiredSprints:number;effectiveCapacity:number;burnupData:SprintForecast[];}
