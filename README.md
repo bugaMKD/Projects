@@ -1,28 +1,25 @@
-# PSP Delivery Simulator — Iteration 5.4.3: Release-Specific Historical Productivity & Capacity
+# PSP Delivery Simulator — Iteration 5.4.4: Duplicate Release
 
-This patch builds on **the validated 5.4.2 workspace**. It replaces the old static bottom `HistoricalCapacityView` rendering with an explicitly release-aware, read-only panel. Forecast calculations and persistence remain untouched.
+Prerequisites: validated **5.4.3**. No forecasting engine changes. **Do not replace `ReleaseWorkspace.tsx`**; the 5.4.3 panel remains exactly as validated.
 
-## Apply
+## Copy these files
 
-Copy files into the corresponding project paths:
+- **Replace** `src/App.tsx` — based on the validated 5.4.2 App shell; 5.4.3 changed only ReleaseWorkspace and its capacity panel.
+- **Replace** `src/components/ReleaseManagement.tsx` — adds a Duplicate action beside Open/Delete for every saved release.
+- **Add** `src/services/DuplicateRelease.ts` — pure duplication logic (no storage or recalculation).
+- **Add** `tests/duplicate-release.test.mjs` — 9 focused model tests.
+- **Add** `tests/duplicate-release-ui-contract.test.mjs` — 3 UI wiring contract tests.
 
-1. **Replace** `src/ReleaseWorkspace.tsx`.
-2. **Add** `src/components/ReleaseHistoricalCapacityView.tsx`.
-3. **Add** `src/services/releaseCapacitySummary.ts`.
-4. **Add** `tests/release-capacity-summary.test.mjs`.
-5. **Add** `tests/release-capacity-ui-contract.test.mjs`.
-
-Do **not** delete `src/components/HistoricalCapacityView.tsx` yet; it may be used elsewhere. The new workspace no longer renders it. No `App.tsx`, repository, release record, or forecasting engine files are modified.
+If you made additional unshared changes to `App.tsx` or `ReleaseManagement.tsx`, compare rather than overwriting them. The previously reported small 5.3 fix was not supplied as a new `ReleaseManagement.tsx`.
 
 ## Behavior
 
-- The bottom Historical Productivity & Delivery Capacity panel now reflects the **selected release** rather than illustrative mock capacity.
-- For Draft BL, it shows **committed** historical productivity and future SE/QA capacity. The panel updates when valid input is applied on blur/Enter, not while partially typing.
-- For Established BL, it reads the **frozen snapshot** (`established.historical` and `established.sprintMembers`). Reopening an established release keeps its original assumptions.
-- Displays historical total delivered SP, total historical SE/QA effective days, historical delivered SP per effective role day, planned available and effective person-days **per future sprint**, potential role throughput, combined realistic throughput, and limiting role (SE, QA, or both).
-- Future effective days per role = sum of member available days per sprint × member productivity. Potential SP per role = historical SP / historical effective role days × future effective days per sprint. The bottleneck is the role with lower potential, precisely as the previously validated forecast engine does.
-- The panel is read-only. The configuration panels remain the only editing surface.
-- No mock data are read by the new panel, and no changes are made to the forecast engine. If historical effective days are unavailable/zero, the summary shows N/A rather than dividing by zero.
+1. In **Release Management**, click **Duplicate** on any saved Draft or Established BL release.
+2. If the current workspace contains unsaved edits, the usual discard-changes confirmation appears first.
+3. The application reads the original from the repository, creates a **new unsaved Draft BL** using a fresh ID and timestamp, and navigates directly to **Release Workspace**.
+4. The name is suggested as `<Original name> (Copy)`. Scope, variation, historical productivity, and all future SE/QA member settings carry over.
+5. Actual sprint history is empty, and any established BL snapshot is discarded. The original release stays unchanged.
+6. Modify inputs as desired and explicitly click **Save Draft**. Until then the copy does not appear in Release Management and leaving the workspace warns about unsaved changes.
 
 ## Validate
 
@@ -32,17 +29,15 @@ npm run build
 npm run dev
 ```
 
-**14 new tests**, so if 5.4.2 ended with 182 tests, expect **196 tests**. The 14 tests passed locally in an isolated Node fixture, and the standalone summary service passed a strict TypeScript check. The full React build must still be run in your checkout.
+Expected new tests: **12**. If your most recent full test count was 196, expect **208** in total. The 9 model and 3 UI contract tests passed in a local isolated test fixture. The model passed a strict TypeScript check; you must run the complete project build on your machine.
 
-### Manual checks
+### Manual scenarios
 
-1. Create a release. Default historical totals should be 100 delivered SP, 100 historical SE effective days, and 50 historical QA effective days (only if you retain the previously agreed defaults).
-2. Modify Historical delivered SP or historical role days; after blur, confirm the bottom panel changes along with the forecast.
-3. Modify a SE or QA member's available days and productivity; verify the future **effective days / sprint**, role potential, and bottleneck reflect the changes.
-4. Add multiple members of a role, and confirm their contributions are aggregated. Set one role to zero effective days and verify throughput is zero.
-5. Save Draft; navigate away and reopen. The bottom panel should show that particular release's saved inputs.
-6. Establish BL; reopen from Release Management. The panel should show its frozen original assumptions, and established BL lines must remain unchanged.
-7. Open a second release with different inputs and confirm there is no carryover from the first.
-8. Confirm the **PSP allocation** panel remains unchanged (its original buckets are still mock placeholders; replacing them is out of scope).
+- Create a saved draft with modified scope/team, duplicate it, and confirm the new name and settings; no actual sprints; status Draft BL.
+- Establish a release BL, duplicate it, and verify the new copy is editable without a frozen BL; source remains locked.
+- Return to Management without saving the copy: expect a warning and no duplicate in saved list.
+- Duplicate again and **Save Draft**: return to Management and verify both distinct releases exist.
+- Reopen both, ensure no shared edits or altered baseline; ensure historical capacity panel correctly follows the selected release.
+- Trigger a duplicate while an existing draft has unsaved changes and cancel the warning: existing workspace remains intact.
 
-The actual sprint entry UI remains a separate upcoming step.
+Next suggested step: 5.4.5 — Actual Sprint Entry.

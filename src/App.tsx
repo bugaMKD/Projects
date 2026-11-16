@@ -9,6 +9,7 @@ import { DEFAULT_SPRINT_CAPACITY_MEMBERS } from './models/DraftSprintCapacityInp
 import { INITIAL_NAVIGATION, navigateToManagement, navigateToNewRelease, navigateToSavedRelease, reconcileDeletedRelease, type NavigationState } from './navigation/ReleaseNavigation';
 import { newWorkspaceSession, openWorkspaceSession, editWorkspaceSession, persistWorkspaceDraft, persistWorkspaceBaseline, type WorkspaceSession } from './services/ReleaseWorkspaceOperations';
 import ReleaseWorkspace from './ReleaseWorkspace';
+import { duplicateReleaseToNewSession } from './services/DuplicateRelease';
 
 /** 5.4.2: the app shell selects one persisted or new release; the simulator owns editable form text. */
 export default function App() {
@@ -72,6 +73,23 @@ export default function App() {
       setStorageError(null);
     } catch (error) { setStorageError(error instanceof Error ? error.message : 'Cannot open release.'); }
   };
+  const duplicateRelease = (id: string) => {
+    if (!acceptLeave()) return;
+    if (!repository || storageError) return;
+    try {
+      // Read the current persisted source, not a possibly stale list snapshot.
+      const original = repository.getRelease(id);
+      if (!original) throw new Error('Release not found. Refresh the list.');
+      const next = duplicateReleaseToNewSession(original, crypto.randomUUID(), new Date().toISOString());
+      setSession(next);
+      setWorkspaceEpoch(n => n + 1);
+      dirtyRef.current = true; // The duplicated draft intentionally has NOT been saved.
+      setNavigation(navigateToNewRelease());
+      setStorageError(null);
+    } catch (error) {
+      setStorageError(error instanceof Error ? error.message : 'Cannot duplicate release.');
+    }
+  };
   const deleteRelease = (id: string) => {
     const record = releases.find(item => item.id === id);
     if (!record || !repository || storageError) return;
@@ -118,7 +136,7 @@ export default function App() {
     </div>
     {navigation.tab === 'management' ? <main style={{ maxWidth: 1100, margin: '0 auto', padding: '26px 24px' }}>
       <ReleaseManagement releases={releases} error={storageError} onRefresh={refresh}
-        onNew={startNewRelease} onOpen={openRelease} onDelete={deleteRelease} />
+        onNew={startNewRelease} onOpen={openRelease} onDelete={deleteRelease} onDuplicate={duplicateRelease} />
     </main> : session ? <ReleaseWorkspace
       key={`${session.saved.id}:${workspaceEpoch}`}
       session={session}
