@@ -1,48 +1,106 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ReleaseManagement } from './components/ReleaseManagement';
 import { createBrowserReleaseRepository } from './repositories/LocalStorageReleaseRepository';
-import type { ReleaseRecord } from './models/ReleaseRecord';
+import type { ReleaseRecord, ReleaseInputs } from './models/ReleaseRecord';
+import type { EstablishedBaseline } from './models/EstablishedBaseline';
+import { historicalMock } from './mockData';
+import { getInitialDraftBaselineConfig } from './data/originalReleaseDataset';
+import { DEFAULT_SPRINT_CAPACITY_MEMBERS } from './models/DraftSprintCapacityInput';
 import { INITIAL_NAVIGATION, navigateToManagement, navigateToNewRelease, navigateToSavedRelease, reconcileDeletedRelease, type NavigationState } from './navigation/ReleaseNavigation';
+import { newWorkspaceSession, openWorkspaceSession, editWorkspaceSession, persistWorkspaceDraft, persistWorkspaceBaseline, type WorkspaceSession } from './services/ReleaseWorkspaceOperations';
 import ReleaseWorkspace from './ReleaseWorkspace';
 
-/** Iteration 5.3: navigation and list/delete only. Persistence of workspace input is 5.4. */
+/** 5.4.2: the app shell selects one persisted or new release; the simulator owns editable form text. */
 export default function App() {
   const [navigation, setNavigation] = useState<NavigationState>(INITIAL_NAVIGATION);
+  const [session, setSession] = useState<WorkspaceSession | null>(null);
+  const [workspaceEpoch, setWorkspaceEpoch] = useState(0);
   const [releases, setReleases] = useState<ReleaseRecord[]>([]);
   const [storageError, setStorageError] = useState<string | null>(null);
+  const dirtyRef = useRef(false);
   const repository = useMemo(() => {
     try { return createBrowserReleaseRepository(); }
     catch { return null; }
   }, []);
 
   const refresh = useCallback(() => {
-    if (!repository) { setStorageError('Browser storage is unavailable. No saved records were modified.'); return; }
+    if (!repository) { setStorageError('Browser storage is unavailable. Saved records were not modified.'); return; }
     try { setReleases(repository.listReleases()); setStorageError(null); }
     catch (error) { setStorageError(error instanceof Error ? error.message : 'Cannot read releases.'); setReleases([]); }
   }, [repository]);
 
   useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (dirtyRef.current) { event.preventDefault(); event.returnValue = ''; }
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, []);
 
+  const acceptLeave = (): boolean => !dirtyRef.current || window.confirm('This release has unsaved changes. Discard changes and continue?');
+  const onDirtyChange = useCallback((dirty: boolean) => { dirtyRef.current = dirty; }, []);
   const goToManagement = () => {
+    if (navigation.tab !== 'management' && !acceptLeave()) return;
+    dirtyRef.current = false;
     setNavigation(state => navigateToManagement(state));
     refresh();
   };
-
+  const startNewRelease = () => {
+    if (!acceptLeave()) return;
+    if (!repository || storageError) { setStorageError('Cannot create release while storage is unavailable.'); return; }
+    const id = crypto.randomUUID();
+    const inputs: ReleaseInputs = {
+      release: getInitialDraftBaselineConfig(),
+      historical: { ...historicalMock },
+      sprintMembers: DEFAULT_SPRINT_CAPACITY_MEMBERS.map(member => ({ ...member })),
+    };
+    setSession(newWorkspaceSession(id, new Date().toISOString(), inputs));
+    setWorkspaceEpoch(n => n + 1);
+    dirtyRef.current = true;
+    setNavigation(navigateToNewRelease());
+  };
+  const openRelease = (id: string) => {
+    if (!acceptLeave()) return;
+    if (!repository || storageError) return;
+    try {
+      const next = openWorkspaceSession(repository, id);
+      setSession(next);
+      setWorkspaceEpoch(n => n + 1);
+      dirtyRef.current = false;
+      setNavigation(navigateToSavedRelease(id, releases));
+      setStorageError(null);
+    } catch (error) { setStorageError(error instanceof Error ? error.message : 'Cannot open release.'); }
+  };
   const deleteRelease = (id: string) => {
     const record = releases.find(item => item.id === id);
-    if (!record || !repository) return;
+    if (!record || !repository || storageError) return;
+    if (session?.saved.id === id && !acceptLeave()) return;
     if (!window.confirm(`Delete "${record.draft.release.releaseName}"? This cannot be undone.`)) return;
-    try { repository.deleteRelease(id); setNavigation(state => reconcileDeletedRelease(state, id)); refresh(); }
-    catch (error) { setStorageError(error instanceof Error ? error.message : 'Cannot delete release.'); }
+    try {
+      repository.deleteRelease(id);
+      setNavigation(state => reconcileDeletedRelease(state, id));
+      if (session?.saved.id === id) { setSession(null); dirtyRef.current = false; }
+      refresh();
+    } catch (error) { setStorageError(error instanceof Error ? error.message : 'Cannot delete release.'); }
   };
 
-  const openRelease = (id: string) => {
-    if (storageError) return;
-    try { setNavigation(navigateToSavedRelease(id, releases)); }
-    catch (error) { setStorageError(error instanceof Error ? error.message : 'Cannot open release.'); }
+  const saveDraft = (inputs: ReleaseInputs) => {
+    if (!repository || !session) throw new Error('No active release or storage repository.');
+    // Persist only after explicit action, and keep the session unchanged on failure.
+    const updated = persistWorkspaceDraft(repository, editWorkspaceSession(session, inputs), new Date().toISOString());
+    setSession(updated);
+    dirtyRef.current = false;
+    refresh();
+  };
+  const establish = (inputs: ReleaseInputs, snapshot: EstablishedBaseline) => {
+    if (!repository || !session) throw new Error('No active release or storage repository.');
+    const updated = persistWorkspaceBaseline(repository, editWorkspaceSession(session, inputs), new Date().toISOString(), snapshot);
+    setSession(updated);
+    dirtyRef.current = false;
+    refresh();
   };
 
-  const selectedReleaseId = navigation.selection.kind === 'saved' ? navigation.selection.releaseId : null;
   const navButton: React.CSSProperties = { padding: '11px 18px', borderRadius: 8, border: '1px solid #c9d4e2', cursor: 'pointer', font: 'inherit' };
   return <div style={{ minHeight: '100vh', background: '#f5f7fb', color: '#18273d' }}>
     <div style={{ background: '#fff', borderBottom: '1px solid #e0e6ef' }}>
@@ -54,22 +112,21 @@ export default function App() {
         <button type="button" aria-current={navigation.tab === 'management' ? 'page' : undefined} onClick={goToManagement}
           style={{ ...navButton, background: navigation.tab === 'management' ? '#dceafd' : '#fff', fontWeight: navigation.tab === 'management' ? 700 : 400 }}>Release Management</button>
         <button type="button" aria-current={navigation.tab === 'workspace' ? 'page' : undefined}
-          onClick={() => setNavigation(state => ({ ...state, tab: 'workspace' }))}
+          onClick={() => { if (session) setNavigation(state => ({ ...state, tab: 'workspace' })); }}
           style={{ ...navButton, background: navigation.tab === 'workspace' ? '#dceafd' : '#fff', fontWeight: navigation.tab === 'workspace' ? 700 : 400 }}>Release Workspace</button>
       </nav>
     </div>
     {navigation.tab === 'management' ? <main style={{ maxWidth: 1100, margin: '0 auto', padding: '26px 24px' }}>
       <ReleaseManagement releases={releases} error={storageError} onRefresh={refresh}
-        onNew={() => setNavigation(navigateToNewRelease())} onOpen={openRelease} onDelete={deleteRelease} />
-    </main> : <div>
-      <aside role="status" style={{ maxWidth: 1100, margin: '18px auto', padding: '14px 20px', border: '1px solid #d4c598', borderRadius: 10, background: '#fff9e8', color: '#574419' }}>
-        {navigation.selection.kind === 'saved'
-          ? <>Selected saved release: <strong>{releases.find(r => r.id === selectedReleaseId)?.draft.release.releaseName ?? 'Unknown release'}</strong>. The workspace below is the existing simulator preview; loading this release's saved inputs and BL is implemented in Iteration 5.4.</>
-          : navigation.selection.kind === 'new'
-            ? <>New release workspace preview. The existing simulator below is unchanged; connecting it to a new unsaved release and Save Draft is planned for Iteration 5.4.</>
-            : <>No release selected. Choose a release from Release Management or start a new one. The existing simulator below is a preview only.</>}
-      </aside>
-      <ReleaseWorkspace />
-    </div>}
+        onNew={startNewRelease} onOpen={openRelease} onDelete={deleteRelease} />
+    </main> : session ? <ReleaseWorkspace
+      key={`${session.saved.id}:${workspaceEpoch}`}
+      session={session}
+      onSaveDraft={saveDraft}
+      onEstablishBaseline={establish}
+      onDirtyChange={onDirtyChange}
+    /> : <main style={{ maxWidth: 1100, margin: '30px auto', padding: 24 }}>
+      Choose a saved release or create a new release in Release Management.
+    </main>}
   </div>;
 }

@@ -1,62 +1,60 @@
-# PSP Delivery Simulator — Iteration 5.3: Two-Tab Release Management UI
+# PSP Delivery Simulator — Iteration 5.4.2: Connect saved releases to Release Workspace
 
-## IMPORTANT: preserve the current validated workspace
+## Source files
 
-This patch provides a *new* top-level `src/App.tsx` application shell. It **does not include a copy of your current Iteration 4 workspace**, because your local `App.tsx` is the validated source of truth and must remain intact.
+This patch was built from the **two files you uploaded after validating Iteration 5.3**, including your local App.tsx fix. It deliberately does not replace any forecasting engine, data model, repository, or management-list file.
 
-**Apply in this order:**
+## Prerequisite
 
-1. On your Iteration 5 Git branch, verify `npm test` and `npm run build` already pass. Commit/backup your validated code.
-2. **Move/rename your existing `src/App.tsx` to `src/ReleaseWorkspace.tsx`**. Keep its contents unchanged, including its default-exported function (`export default function App()` is fine; the exported local function name need not change).
-3. Copy the new `src/App.tsx` from this patch into your project.
-4. Add `src/components/ReleaseManagement.tsx`, `src/navigation/ReleaseNavigation.ts` and `tests/release-navigation.test.mjs` from this patch.
-5. Run `npm test`, `npm run build`, and `npm run dev`.
+Iteration 5.4.1 installed and locally validated. The new App.tsx calls its `ReleaseWorkspaceOperations` service.
 
-**Do not overwrite your existing `src/App.tsx` before renaming it.** That file contains all the working forecasting controls and must survive intact in `src/ReleaseWorkspace.tsx`.
+## Apply
 
-## Scope / behavior
+On your Iteration 5 branch, commit the working tree or make a backup first. Then:
 
-- Two top-level tabs: **Release Management** (startup default) and **Release Workspace**.
-- Management lists the actual persisted releases from the 5.2 repository, including release status, scope, delivered SP (sum of per-sprint actuals), and the saved BL Realistic completion sprint (where established).
-- Displays an empty state if no releases have been saved yet.
-- `New Release` switches to the Workspace tab, marked as a new unsaved configuration preview.
-- `Open release` selects its stable ID and opens the Workspace tab; it does **NOT yet hydrate the simulator from the stored inputs**. A clear notice explains this, rather than pretending the stored release is loaded.
-- `Delete` requires native confirmation, deletes only the selected record, and refreshes the list.
-- Local-storage errors appear in an error message; invalid stored data is never wiped automatically.
-- The existing simulator is imported as `ReleaseWorkspace` and is **not modified**.
+1. **Replace** `src/App.tsx` with the supplied `src/App.tsx`.
+2. **Replace** `src/ReleaseWorkspace.tsx` with the supplied `src/ReleaseWorkspace.tsx`.
+3. **Add** `tests/workspace-ui-integration.test.mjs`.
+4. Run `npm test`, `npm run build`, and `npm run dev`.
 
-### Deliberate boundary: Iteration 5.4
+No dependencies or package configuration changes. The `src/components/ReleaseManagement.tsx` file remains unchanged.
 
-This is the navigation and management-list iteration, **not** the workspace integration iteration.
+## Behavior delivered in 5.4.2
 
-- Do not consider the preview below the notice to be the opened release's data. It still uses the previously validated simulator's internal state/mock inputs.
-- Draft editing, `Save Draft`, establishing a BL to the repository, loading saved draft or established BL into the workspace, and unsaved-change guards will be implemented in 5.4.
-- The current 4.x workspace header will appear nested under the new application header until the workspace layout is refined in 5.4; the forecasting logic itself stays untouched.
-- Switching tabs currently remounts the preview; do not use the preview for unsaved production data. UI warns about preview status.
+- Application still **starts in Release Management**.
+- `New Release` opens a **new unsaved** session with default assumptions and **zero completed sprints**. It does not write storage until `Save Draft` or `Establish Baseline`.
+- `Open release` retrieves a stored record by ID, hydrates release name, scope, variation, historical productivity, member capacity and actual sprint results. Re-opening a saved release resets the form instance, including when the same ID was opened previously.
+- Draft edits stay local. Inputs staged while typing remain separate from committed numeric values. `Save Draft` requires **fully valid, applied inputs** and uses the 5.4.1 repository operation.
+- `Establish Baseline` takes the current validated engine's forecast, freezes its inputs and all three BL scenarios, and persists it with **one repository write**. An established release reopens with locked inputs and saved BL forecast points, rather than recalculating them.
+- The displayed actual history is taken from the selected release's saved incremental SP by sprint, **not from `mockRelease.sprintCompletedPoints`**. The existing historical-capacity example and PSP allocation placeholder are still independent illustrative panels.
+- Unsaved changes are indicated, including uncommitted or invalid text; switching to Release Management, choosing another release, or browser refresh prompts before losing edits.
+- Save/storage errors display an error and leave the current unsaved draft intact.
 
-## Validation
+## Scope boundary
 
-```powershell
-npm test
-npm run build
-npm run dev
-```
+**Recording/editing a completed sprint via UI is not implemented in this patch.** Previously stored actuals display properly, and the 5.4.1 service already supports saving actual changes independently. Connecting the actuals editor is the next focused UI task. No forecast math is changed here.
 
-Expected **161 tests** (152 validated through 5.2 + 9 new tests), assuming prior test count matches.
+This is browser-local persistence, not cloud sync. No import/export yet.
 
-The 9 new navigation/summary tests passed in an isolated Node test run, and the navigation types passed strict TypeScript checking. The complete React app and runtime UI must be verified in your own checkout.
+## Automated checks
 
-### Visual test checklist
+The six tests in `tests/workspace-ui-integration.test.mjs` are **source-level wiring contracts**: they verify that the intended session, save, BL restoration, actual source and navigation guards are present. All six passed. Both modified TSX files also passed a TypeScript syntax/transpilation check. These checks **do not replace** a complete application build or browser tests.
 
-1. Initial tab is Release Management; no releases displays empty state.
-2. Both tabs are visible and can be selected.
-3. The Release Workspace contains your unchanged previous simulator (inputs, burn-up chart, establishment UI).
-4. Clicking New Release selects Workspace and displays the preview warning.
-5. Any releases already saved through the 5.2 repository appear after refreshing/reopening the management tab.
-6. Clicking Open on a saved release shows its name in the warning (do not expect data hydration until 5.4).
-7. Cancel Delete leaves the record intact; confirm Delete removes only that record.
-8. Invalid browser storage surfaces an error and is not cleared.
+Expected total: **182 tests** if your previous validated total was 176, all existing tests are included, and the test runner discovers the new `.mjs` test.
 
-## Next: Iteration 5.4 — Release Workspace integration
+## Visual validation checklist
 
-Connect the selected release/new release state to the actual configurable form state. Implement explicit Save Draft, establish-and-save BL, hydrating saved releases, actual delivery updates, and unsaved-change protection. Keep the established BL immutable and the forecasting engine unchanged.
+1. Launch app: Release Management is selected.
+2. Click New Release: workspace shows defaults, `Completed sprint 0`, `Unsaved changes` and an active `Save Draft`. Release list remains empty until saved.
+3. Edit scope, history and capacity (blur/Enter to apply): chart follows valid inputs, not keystrokes. Save Draft, then return to Release Management: a record appears.
+4. Open the saved draft: exact saved scope, history and member values load. Refresh browser, reopen: data persists.
+5. Edit an existing draft but switch tabs: confirm warning; Cancel stays on workspace. Discard returns to management and saved version remains intact.
+6. Type invalid data or an unapplied scope change: Save Draft and Establish Baseline disabled; no storage change.
+7. Open a saved draft, establish BL: status changes to Established BL; settings lock and the three forecast lines/sprint completions do not jump.
+8. Refresh browser and reopen established release: BL stays established and locked, with the same forecast and actual history.
+9. Create another release and save it: both releases remain separate, can be opened and deleted individually.
+10. Run full `npm test` and `npm run build`; report any errors with filenames and line numbers so they can be fixed without resetting validated features.
+
+### Existing display copy
+
+`ReleaseManagement.tsx` from 5.3 may still say that Save Draft is coming in 5.4. This patch deliberately does not overwrite that component. You can change that descriptive text to "Create a release, then use Save Draft in the workspace." after validating 5.4.2.

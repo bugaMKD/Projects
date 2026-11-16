@@ -1,18 +1,21 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CartesianGrid, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { capacityBuckets, historicalMock, mockRelease } from './mockData';
-import { getIntegratedMockData, getInitialDraftBaselineConfig } from './data/originalReleaseDataset';
+import { capacityBuckets } from './mockData';
+import { buildReleaseChartDataset } from './services/releaseChartData';
+import type { ReleaseInputs } from './models/ReleaseRecord';
+import type { WorkspaceSession } from './services/ReleaseWorkspaceOperations';
+import { hasUnsavedDraftChanges } from './services/ReleaseWorkspaceOperations';
 import { createDraftBaselineFormInput, parseDraftBaselineFormInput } from './models/DraftBaselineInput';
 import { createDraftHistoricalFormInput, parseDraftHistoricalFormInput } from './models/DraftHistoricalInput';
 import { commitDraftHistoricalForm } from './models/DraftHistoricalCommit';
-import { DEFAULT_SPRINT_CAPACITY_MEMBERS, createDraftSprintCapacityForm, parseDraftSprintCapacityForm } from './models/DraftSprintCapacityInput';
+import { createDraftSprintCapacityForm, parseDraftSprintCapacityForm } from './models/DraftSprintCapacityInput';
 import { addDraftSprintMember, commitDraftSprintCapacityForm, removeDraftSprintMember } from './models/DraftSprintCapacityCommit';
 import { HistoricalCapacityView } from './components/HistoricalCapacityView';
 import { establishBaseline, type EstablishedBaseline } from './models/EstablishedBaseline';
 import { buildEstablishedBaselineDataset } from './services/establishedBaselineDataset';
 import { getBaselineEstablishmentEligibility } from './models/BaselineEstablishmentEligibility';
 
-// Draft BL is recalculated from valid inputs; actuals remain independent.
+// Draft BL uses the validated engine; actual progress comes from the selected release.
 
 const formatStoryPoints = (points: number | null): string =>
   points === null ? 'N/A' : `${Number(points.toFixed(2))}`;
@@ -26,31 +29,63 @@ function Metric({ title, value, detail }: { title: string; value: string; detail
 function SectionHeading({ eyebrow, title, description }: { eyebrow: string; title: string; description?: string }) {
   return <div className="section-heading"><div className="eyebrow">{eyebrow}</div><h2>{title}</h2>{description && <p>{description}</p>}</div>;
 }
-export default function App() {
+export interface ReleaseWorkspaceProps {
+  session: WorkspaceSession;
+  onSaveDraft: (inputs: ReleaseInputs) => void;
+  onEstablishBaseline: (inputs: ReleaseInputs, baseline: EstablishedBaseline) => void;
+  onDirtyChange: (dirty: boolean) => void;
+}
+
+export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBaseline, onDirtyChange }: ReleaseWorkspaceProps) {
+  const initial = session.committed;
+  const savedActuals = session.saved.completedSprintPoints;
+  const established = session.saved.establishedBaseline;
+  const [actionError, setActionError] = useState<string | null>(null);
   // The form is free to hold temporarily invalid text, but only a valid draft
   // is ever sent to the validated forecasting engine.
-  const [form, setForm] = useState(() => createDraftBaselineFormInput(getInitialDraftBaselineConfig()));
-  const [validDraft, setValidDraft] = useState(getInitialDraftBaselineConfig);
+  const [form, setForm] = useState(() => createDraftBaselineFormInput(initial.release));
+  const [validDraft, setValidDraft] = useState(() => ({...initial.release}));
   const parsed = useMemo(() => parseDraftBaselineFormInput(form), [form]);
   // Historical text is staged while typing and committed only on blur/Enter.
   // Invalid text cannot replace last valid historical assumptions.
-  const [historicalForm, setHistoricalForm] = useState(() => createDraftHistoricalFormInput(historicalMock));
-  const [validHistorical, setValidHistorical] = useState(() => ({...historicalMock}));
+  const [historicalForm, setHistoricalForm] = useState(() => createDraftHistoricalFormInput(initial.historical));
+  const [validHistorical, setValidHistorical] = useState(() => ({...initial.historical}));
   const historicalValidation = useMemo(() => parseDraftHistoricalFormInput(historicalForm), [historicalForm]);
   // Future team capacity is PER SPRINT. Form edits are staged until blur/Enter.
-  const [capacityForm, setCapacityForm] = useState(() => createDraftSprintCapacityForm(DEFAULT_SPRINT_CAPACITY_MEMBERS));
-  const [validSprintMembers, setValidSprintMembers] = useState(() => DEFAULT_SPRINT_CAPACITY_MEMBERS.map(m => ({...m})));
+  const [capacityForm, setCapacityForm] = useState(() => createDraftSprintCapacityForm(initial.sprintMembers));
+  const [validSprintMembers, setValidSprintMembers] = useState(() => initial.sprintMembers.map(m => ({...m})));
   const capacityValidation = useMemo(() => parseDraftSprintCapacityForm(capacityForm), [capacityForm]);
-  const [established, setEstablished] = useState<EstablishedBaseline | null>(null);
-  const draftData = useMemo(() => getIntegratedMockData(validDraft, validHistorical, validSprintMembers), [validDraft, validHistorical, validSprintMembers]);
+  const draftData = useMemo(() => buildReleaseChartDataset({
+    originalScopeStoryPoints: validDraft.scopeStoryPoints,
+    historical: validHistorical,
+    originalSprintMembers: validSprintMembers,
+    variationPercent: validDraft.variationPercent,
+    completedSprintPoints: savedActuals,
+  }), [validDraft, validHistorical, validSprintMembers, savedActuals]);
   const data = useMemo(() => established
-    ? buildEstablishedBaselineDataset(established, mockRelease.sprintCompletedPoints)
-    : draftData, [established, draftData]);
+    ? buildEstablishedBaselineDataset(established, savedActuals)
+    : draftData, [established, savedActuals, draftData]);
   const displayedRelease = established?.release ?? validDraft;
   const eligibility = getBaselineEstablishmentEligibility(form, validDraft, historicalForm, validHistorical, capacityForm, validSprintMembers);
+  const currentInputs = useMemo<ReleaseInputs>(() => ({
+    release: validDraft, historical: validHistorical, sprintMembers: validSprintMembers,
+  }), [validDraft, validHistorical, validSprintMembers]);
+  const dirty = !established && (
+    hasUnsavedDraftChanges({ ...session, committed: currentInputs }) || !eligibility.allowed
+  );
+  useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
+  const saveDraft = () => {
+    if (established || !eligibility.allowed) return;
+    try { onSaveDraft(currentInputs); setActionError(null); }
+    catch (error) { setActionError(error instanceof Error ? error.message : 'Unable to save draft.'); }
+  };
   const establish = () => {
     if (established || !eligibility.allowed) return;
-    setEstablished(establishBaseline(validDraft, validHistorical, validSprintMembers, draftData));
+    try {
+      const snapshot = establishBaseline(validDraft, validHistorical, validSprintMembers, draftData);
+      onEstablishBaseline(currentInputs, snapshot);
+      setActionError(null);
+    } catch (error) { setActionError(error instanceof Error ? error.message : 'Unable to establish baseline.'); }
   };
   const commitCapacity = (nextForm: typeof capacityForm = capacityForm) => {
     if (established) return;
@@ -97,12 +132,12 @@ export default function App() {
     if (next.config) setValidDraft(next.config);
   };
   const formHasErrors = Object.keys(parsed.errors).length > 0;
-  const count = mockRelease.sprintCompletedPoints.length;
+  const count = savedActuals.length;
   const realisticAtCurrentSprint = data.originalAtCurrentSprint.realistic;
   const realGap = realisticAtCurrentSprint === null ? null : data.completed - realisticAtCurrentSprint;
   const totalAllocation = capacityBuckets.reduce((sum,b)=>sum+b.percent,0);
   return <div className="app">
-    <header className="topbar"><div className="brand-mark">P</div><div className="brand-title"><strong>PSP</strong><span>Delivery Simulator</span></div><div className="topbar-right"><span className="topbar-dot"/> Local prototype <span className="mock-chip">{established ? 'ITERATION 4.3 · ESTABLISHED BL' : 'ITERATION 4.3 · DRAFT BL'}</span></div></header>
+    <header className="topbar"><div className="brand-mark">P</div><div className="brand-title"><strong>PSP</strong><span>Delivery Simulator</span></div><div className="topbar-right"><span className="topbar-dot"/> Local prototype <span className="mock-chip">{established ? 'ESTABLISHED BL' : 'DRAFT BL'}</span></div></header>
     <main className="container">
       <div className="page-intro"><div><div className="eyebrow">Release intelligence / Overview</div><h1>{displayedRelease.releaseName}</h1><p>Review the release baseline and track actual delivery. After establishment, BL assumptions and all three forecasts are locked.</p></div><div className="sprint-pill"><span className="status-dot"/> Completed sprint {count}</div></div>
       <section className="panel" aria-label="BL release configuration" style={{marginBottom:20}}>
@@ -129,7 +164,7 @@ export default function App() {
             <small style={{fontWeight:400,color:'#64738b'}}>0% to 30% · Default ±15%</small>
           </label>
         </div>
-        <p style={{margin:'14px 0 0',fontSize:12,color:'#64738b'}}>{established ? 'Established BL · Inputs locked · Stored in memory until page reload.' : formHasErrors ? 'Invalid form input: the chart retains the last valid draft until all inputs are valid.' : 'Draft BL preview · Not frozen · Values are not saved after reloading.'}</p>
+        <p style={{margin:'14px 0 0',fontSize:12,color:'#64738b'}}>{established ? 'Established BL · Inputs locked and saved in this browser.' : formHasErrors ? 'Invalid form input: the chart retains the last valid draft until all inputs are valid.' : 'Draft BL · Use Save Draft to persist the current inputs.'}</p>
       </section>
       <section className="panel" aria-label="BL historical productivity" style={{marginBottom:20}}>
         <div className="section-heading"><div className="eyebrow">{established ? 'Historical inputs / Established BL' : 'Historical inputs / Draft BL · Not established'}</div><h2>Historical Productivity</h2><p>Enter the historical totals (not averages per sprint). Leave a field or press Enter to apply the changes to all three Draft BL forecasts. Future capacity is configured separately below.</p></div>
@@ -149,7 +184,7 @@ export default function App() {
             {historicalValidation.errors[field.key] && <small role="alert" style={{color:'#b42318'}}>{historicalValidation.errors[field.key]}</small>}
           </label>)}
         </div>
-        <p style={{margin:'14px 0 0',fontSize:12,color:'#64738b'}}>{established ? 'Historical assumptions locked in the established BL.' : historicalValidation.historical === null ? 'Invalid historical inputs: the chart retains the last valid historical values.' : 'Draft historical values · Applied on field exit or Enter · Not saved after reloading.'}</p>
+        <p style={{margin:'14px 0 0',fontSize:12,color:'#64738b'}}>{established ? 'Historical assumptions locked in the established BL.' : historicalValidation.historical === null ? 'Invalid historical inputs: the chart retains the last valid historical values.' : 'Draft historical values · Applied on field exit or Enter · Save Draft to persist.'}</p>
       </section>
       <section className="panel" aria-label="BL future team capacity" style={{marginBottom:20}}>
         <div className="section-heading"><div className="eyebrow">{established ? 'Future capacity / Established BL' : 'Future capacity / Draft BL · Not established'}</div><h2>Future SE/QA Capacity</h2><p>Configure planned available days <strong>per future sprint</strong> and individual productivity. Leave a field or press Enter to apply changes. These are not historical effective days.</p></div>
@@ -194,19 +229,27 @@ export default function App() {
           <button disabled={!!established} type="button" onClick={() => addCapacityMember('QA')} style={{padding:'9px 14px',borderRadius:8,border:'1px solid #cbd5e1',background:'#f8fafc',cursor:'pointer'}}>+ Add QA</button>
         </div>
         <p style={{margin:'14px 0 0',fontSize:12,color:capacityValidation.members===null?'#b42318':'#64738b'}} role={capacityValidation.members===null?'alert':undefined}>
-          {established ? 'Future team capacity assumptions locked in the established BL.' : capacityValidation.errors.form ?? (capacityValidation.members===null ? 'Invalid future capacity: the graph keeps the last valid team configuration.' : 'Draft per-sprint capacity · Not saved after reloading · A zero-capacity role makes the forecast not forecastable.')}
+          {established ? 'Future team capacity assumptions locked in the established BL.' : capacityValidation.errors.form ?? (capacityValidation.members===null ? 'Invalid future capacity: the graph keeps the last valid team configuration.' : 'Draft per-sprint capacity · Save Draft to persist · Zero capacity means Not forecastable.')}
         </p>
       </section>
       <section className="panel" aria-label="Baseline establishment" style={{marginBottom:20}}>
         <div className="section-heading"><div className="eyebrow">Baseline status</div><h2>{established ? 'Established BL' : 'Draft BL'}</h2>
           <p>{established ? 'Baseline inputs and the BL optimistic, realistic and pessimistic lines are locked. Actual delivery remains independent.' : 'Review and apply all release, historical and capacity edits before establishing the baseline.'}</p></div>
-        {!established && <button type="button" disabled={!eligibility.allowed} onClick={establish}
+        {!established && <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
+          <button type="button" disabled={!eligibility.allowed} onClick={saveDraft}
+            style={{padding:'11px 18px',border:'1px solid #2563eb',borderRadius:8,color:'#2563eb',background:'#fff',fontWeight:700,cursor:eligibility.allowed?'pointer':'not-allowed'}}>
+            Save Draft
+          </button>
+          <button type="button" disabled={!eligibility.allowed} onClick={establish}
           style={{padding:'11px 18px',border:0,borderRadius:8,background:eligibility.allowed?'#2563eb':'#94a3b8',color:'white',fontWeight:700,cursor:eligibility.allowed?'pointer':'not-allowed'}}>
           Establish Baseline
-        </button>}
+          </button>
+        </div>}
+        {!established && <p role="status" style={{fontSize:13,color:dirty?'#9a6700':'#166534'}}>{dirty ? 'Unsaved changes' : 'All draft changes saved'}</p>}
+        {actionError && <p role="alert" style={{color:'#b42318'}}>{actionError}</p>}
         {established && <strong role="status" style={{color:'#166534'}}>Baseline established · Inputs locked</strong>}
         {!established && !eligibility.allowed && <p role="alert" style={{color:'#b42318',fontSize:13}}>{eligibility.reason}</p>}
-        <p style={{fontSize:12,color:'#64738b',marginTop:12}}>This version stores the established baseline in memory only. Reloading the page will return to Draft BL. Persistence is a separate follow-up step.</p>
+        <p style={{fontSize:12,color:'#64738b',marginTop:12}}>Save Draft is manual. Establish Baseline automatically saves the immutable snapshot. Saved releases can be reopened from Release Management.</p>
       </section>
       <section className="metric-grid" aria-label="Release metrics">
         <Metric title="Release scope" value={`${formatStoryPoints(displayedRelease.scopeStoryPoints)} SP`} detail={established ? "Established BL scope" : "Editable draft scope"} />
@@ -245,16 +288,16 @@ export default function App() {
           <div className="divider"/><p className="outlook-note">These completion estimates are based on the BL inputs. Once established, actual delivery does not recalculate them.</p>
         </section>
       </div>
-      <section className="panel sprint-panel"><SectionHeading eyebrow="04 / Actuals · Preserved from v1" title="Completed sprint history" description="Mock delivered story points per sprint; cumulative totals feed the burn-up."/>
-        <div className="sprint-table-wrap"><table><thead><tr><th>Sprint</th><th>Completed this sprint</th><th>Cumulative completed</th><th>BL Realistic</th><th>Variance vs BL Realistic</th></tr></thead><tbody>{mockRelease.sprintCompletedPoints.map((points,i)=>{
-          const cumulative=mockRelease.sprintCompletedPoints.slice(0,i+1).reduce((s,v)=>s+v,0);
+      <section className="panel sprint-panel"><SectionHeading eyebrow="04 / Actuals · Preserved from v1" title="Completed sprint history" description="Saved per-sprint actuals; cumulative totals feed the burn-up. Recording additional actuals will be connected in the next step."/>
+        <div className="sprint-table-wrap"><table><thead><tr><th>Sprint</th><th>Completed this sprint</th><th>Cumulative completed</th><th>BL Realistic</th><th>Variance vs BL Realistic</th></tr></thead><tbody>{savedActuals.map((points,i)=>{
+          const cumulative=savedActuals.slice(0,i+1).reduce((s,v)=>s+v,0);
           const expected=data.chartData[i+1]?.realistic ?? null;
           const diff=expected === null ? null : cumulative-expected;
           return <tr key={i}><td>Sprint {i+1}</td><td>{points} SP</td><td>{cumulative} SP</td><td>{expected === null ? 'N/A' : `${formatStoryPoints(expected)} SP`}</td><td className={diff === null ? '' : diff >= 0 ? 'positive' : 'negative'}>{diff === null ? 'N/A' : `${diff > 0 ? '+' : ''}${formatStoryPoints(diff)} SP`}</td></tr>;
         })}</tbody></table></div>
       </section>
       <HistoricalCapacityView/>
-      <footer>PSP Delivery Simulator · Iteration 4.3 · BL establishment, historical productivity and future per-sprint capacity · No persistence yet</footer>
+      <footer>PSP Delivery Simulator · Iteration 5.4.2 · Saved release workspace · Established BL persistence</footer>
     </main>
   </div>;
 }
