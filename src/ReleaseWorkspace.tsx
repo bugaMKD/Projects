@@ -5,6 +5,7 @@ import { buildReleaseChartDataset } from './services/releaseChartData';
 import type { ReleaseInputs } from './models/ReleaseRecord';
 import type { WorkspaceSession } from './services/ReleaseWorkspaceOperations';
 import { hasUnsavedDraftChanges } from './services/ReleaseWorkspaceOperations';
+import { parseCompletedSprintPoints } from './services/ActualSprintEntry';
 import { createDraftBaselineFormInput, parseDraftBaselineFormInput } from './models/DraftBaselineInput';
 import { createDraftHistoricalFormInput, parseDraftHistoricalFormInput } from './models/DraftHistoricalInput';
 import { commitDraftHistoricalForm } from './models/DraftHistoricalCommit';
@@ -34,13 +35,16 @@ export interface ReleaseWorkspaceProps {
   onSaveDraft: (inputs: ReleaseInputs) => void;
   onEstablishBaseline: (inputs: ReleaseInputs, baseline: EstablishedBaseline) => void;
   onDirtyChange: (dirty: boolean) => void;
+  onRecordSprint: (pointsText: string) => void;
 }
 
-export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBaseline, onDirtyChange }: ReleaseWorkspaceProps) {
+export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBaseline, onDirtyChange, onRecordSprint }: ReleaseWorkspaceProps) {
   const initial = session.committed;
   const savedActuals = session.saved.completedSprintPoints;
   const established = session.saved.establishedBaseline;
   const [actionError, setActionError] = useState<string | null>(null);
+  const [sprintPointsText, setSprintPointsText] = useState('');
+  const [sprintError, setSprintError] = useState<string | null>(null);
   // The form is free to hold temporarily invalid text, but only a valid draft
   // is ever sent to the validated forecasting engine.
   const [form, setForm] = useState(() => createDraftBaselineFormInput(initial.release));
@@ -73,7 +77,21 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
   const dirty = !established && (
     hasUnsavedDraftChanges({ ...session, committed: currentInputs }) || !eligibility.allowed
   );
-  useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
+  const pendingSprintEntry = sprintPointsText.trim() !== '';
+  useEffect(() => { onDirtyChange(dirty || pendingSprintEntry); }, [dirty, pendingSprintEntry, onDirtyChange]);
+  const recordSprint = () => {
+    if (parseCompletedSprintPoints(sprintPointsText) === null) {
+      setSprintError('Enter a valid non-negative completed SP value.');
+      return;
+    }
+    try {
+      onRecordSprint(sprintPointsText);
+      setSprintPointsText('');
+      setSprintError(null);
+    } catch (error) {
+      setSprintError(error instanceof Error ? error.message : 'Unable to save sprint actuals.');
+    }
+  };
   const saveDraft = () => {
     if (established || !eligibility.allowed) return;
     try { onSaveDraft(currentInputs); setActionError(null); }
@@ -288,7 +306,26 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
           <div className="divider"/><p className="outlook-note">These completion estimates are based on the BL inputs. Once established, actual delivery does not recalculate them.</p>
         </section>
       </div>
-      <section className="panel sprint-panel"><SectionHeading eyebrow="04 / Actuals · Preserved from v1" title="Completed sprint history" description="Saved per-sprint actuals; cumulative totals feed the burn-up. Recording additional actuals will be connected in the next step."/>
+      <section className="panel sprint-panel"><SectionHeading eyebrow="04 / Actual delivery" title="Completed sprint history" description="Record the incremental story points delivered in each completed sprint. Saved actuals update the burn-up but never change the established BL."/>
+        <div style={{display:'flex',alignItems:'end',gap:12,flexWrap:'wrap',marginBottom:16}}>
+          <label style={{display:'grid',gap:6,fontSize:13,fontWeight:600}}>
+            Completed SP for Sprint {savedActuals.length + 1}
+            <input type="number" min="0" step="any" aria-label="Completed story points for next sprint"
+              value={sprintPointsText} onChange={event => {setSprintPointsText(event.target.value);setSprintError(null);}}
+              onKeyDown={event => {if(event.key==='Enter')recordSprint();}}
+              disabled={!session.persisted || dirty}
+              style={{padding:'10px 12px',border:'1px solid #cbd5e1',borderRadius:8,width:220}} />
+          </label>
+          <button type="button" onClick={recordSprint}
+            disabled={!session.persisted || dirty || parseCompletedSprintPoints(sprintPointsText) === null}
+            style={{padding:'11px 18px',border:0,borderRadius:8,background:'#2563eb',color:'#fff',fontWeight:700,cursor:'pointer'}}>
+            Save Sprint {savedActuals.length + 1}
+          </button>
+        </div>
+        {(!session.persisted || dirty) && <p style={{fontSize:12,color:'#64738b'}}>
+          {session.persisted ? 'Save pending Draft BL changes before recording actuals.' : 'Save Draft or Establish Baseline before recording actuals.'}
+        </p>}
+        {sprintError && <p role="alert" style={{color:'#b42318'}}>{sprintError}</p>}
         <div className="sprint-table-wrap"><table><thead><tr><th>Sprint</th><th>Completed this sprint</th><th>Cumulative completed</th><th>BL Realistic</th><th>Variance vs BL Realistic</th></tr></thead><tbody>{savedActuals.map((points,i)=>{
           const cumulative=savedActuals.slice(0,i+1).reduce((s,v)=>s+v,0);
           const expected=data.chartData[i+1]?.realistic ?? null;
@@ -297,7 +334,7 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
         })}</tbody></table></div>
       </section>
       <ReleaseHistoricalCapacityView historical={established?.historical ?? validHistorical} sprintMembers={established?.sprintMembers ?? validSprintMembers} established={!!established}/>
-      <footer>PSP Delivery Simulator · Iteration 5.4.3 · Release-specific historical productivity and capacity</footer>
+      <footer>PSP Delivery Simulator · Iteration 5.4.5 · Saved sprint delivery and release-specific capacity</footer>
     </main>
   </div>;
 }

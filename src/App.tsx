@@ -7,9 +7,10 @@ import { historicalMock } from './mockData';
 import { getInitialDraftBaselineConfig } from './data/originalReleaseDataset';
 import { DEFAULT_SPRINT_CAPACITY_MEMBERS } from './models/DraftSprintCapacityInput';
 import { INITIAL_NAVIGATION, navigateToManagement, navigateToNewRelease, navigateToSavedRelease, reconcileDeletedRelease, type NavigationState } from './navigation/ReleaseNavigation';
-import { newWorkspaceSession, openWorkspaceSession, editWorkspaceSession, persistWorkspaceDraft, persistWorkspaceBaseline, type WorkspaceSession } from './services/ReleaseWorkspaceOperations';
+import { newWorkspaceSession, openWorkspaceSession, editWorkspaceSession, persistWorkspaceDraft, persistWorkspaceBaseline, persistWorkspaceActuals, type WorkspaceSession } from './services/ReleaseWorkspaceOperations';
 import ReleaseWorkspace from './ReleaseWorkspace';
 import { duplicateReleaseToNewSession } from './services/DuplicateRelease';
+import { appendCompletedSprint } from './services/ActualSprintEntry';
 
 /** 5.4.2: the app shell selects one persisted or new release; the simulator owns editable form text. */
 export default function App() {
@@ -119,6 +120,19 @@ export default function App() {
     refresh();
   };
 
+  const recordSprint = (pointsText: string) => {
+    if (!repository || !session) throw new Error('No active release or storage repository.');
+    // The session operation also rejects unsaved drafts and unpersisted releases.
+    const updated = persistWorkspaceActuals(
+      repository,
+      session,
+      new Date().toISOString(),
+      appendCompletedSprint(session.saved.completedSprintPoints, pointsText),
+    );
+    setSession(updated);
+    refresh();
+  };
+
   const navButton: React.CSSProperties = { padding: '11px 18px', borderRadius: 8, border: '1px solid #c9d4e2', cursor: 'pointer', font: 'inherit' };
   return <div style={{ minHeight: '100vh', background: '#f5f7fb', color: '#18273d' }}>
     <div style={{ background: '#fff', borderBottom: '1px solid #e0e6ef' }}>
@@ -143,6 +157,7 @@ export default function App() {
       onSaveDraft={saveDraft}
       onEstablishBaseline={establish}
       onDirtyChange={onDirtyChange}
+      onRecordSprint={recordSprint}
     /> : <main style={{ maxWidth: 1100, margin: '30px auto', padding: 24 }}>
       Choose a saved release or create a new release in Release Management.
     </main>}

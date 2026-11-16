@@ -1,43 +1,46 @@
-# PSP Delivery Simulator — Iteration 5.4.4: Duplicate Release
+# PSP Delivery Simulator — 5.4.5a: Actual Sprint Entry
 
-Prerequisites: validated **5.4.3**. No forecasting engine changes. **Do not replace `ReleaseWorkspace.tsx`**; the 5.4.3 panel remains exactly as validated.
+**Prerequisites:** 5.4.4 validated and committed, including the 5.4.3 Historical Capacity panel. This patch does NOT change any forecast calculation, storage schema, baseline snapshot or management UI.
 
-## Copy these files
+## Apply
 
-- **Replace** `src/App.tsx` — based on the validated 5.4.2 App shell; 5.4.3 changed only ReleaseWorkspace and its capacity panel.
-- **Replace** `src/components/ReleaseManagement.tsx` — adds a Duplicate action beside Open/Delete for every saved release.
-- **Add** `src/services/DuplicateRelease.ts` — pure duplication logic (no storage or recalculation).
-- **Add** `tests/duplicate-release.test.mjs` — 9 focused model tests.
-- **Add** `tests/duplicate-release-ui-contract.test.mjs` — 3 UI wiring contract tests.
-
-If you made additional unshared changes to `App.tsx` or `ReleaseManagement.tsx`, compare rather than overwriting them. The previously reported small 5.3 fix was not supplied as a new `ReleaseManagement.tsx`.
+- **Replace** `src/App.tsx` (based on validated 5.4.4).
+- **Replace** `src/ReleaseWorkspace.tsx` (based on validated 5.4.3; 5.4.4 did not change it).
+- **Add** `src/services/ActualSprintEntry.ts`.
+- **Add** the three files in `tests/`.
 
 ## Behavior
 
-1. In **Release Management**, click **Duplicate** on any saved Draft or Established BL release.
-2. If the current workspace contains unsaved edits, the usual discard-changes confirmation appears first.
-3. The application reads the original from the repository, creates a **new unsaved Draft BL** using a fresh ID and timestamp, and navigates directly to **Release Workspace**.
-4. The name is suggested as `<Original name> (Copy)`. Scope, variation, historical productivity, and all future SE/QA member settings carry over.
-5. Actual sprint history is empty, and any established BL snapshot is discarded. The original release stays unchanged.
-6. Modify inputs as desired and explicitly click **Save Draft**. Until then the copy does not appear in Release Management and leaving the workspace warns about unsaved changes.
+- Once the release is saved, the bottom **Completed sprint history** panel has an input for **Sprint N+1**, where N is the number of already saved sprints.
+- Type the **incremental** SP delivered *during that sprint*, not the cumulative SP.
+- Click **Save Sprint N+1** (or press Enter) to append one sprint. A zero-SP sprint is valid; negative, empty and non-finite values are invalid.
+- Save uses the existing `persistWorkspaceActuals` repository function. The action is explicit, atomic from the UI's point of view, and reports storage errors without clearing the input.
+- Before actuals may be entered, the release must have been saved and all Draft BL changes must be saved. Established BL inputs remain locked, but actuals may continue evolving.
+- After saving, actual delivered, remaining SP, variance against BL, sprint count, and burn-up chart update from saved actuals.
+- Pending, unsubmitted actual input is protected by the unsaved-changes navigation warning.
+- The 3 BL forecast lines and completion sprints are unchanged, including when actuals extend beyond the baseline completion horizon.
+- At this stage, only **appending new sprints** is available; editing previously saved sprint entries is deferred. This guards against accidental historical rewrites.
 
-## Validate
+## Validation
 
-```powershell
+```
 npm test
 npm run build
 npm run dev
 ```
 
-Expected new tests: **12**. If your most recent full test count was 196, expect **208** in total. The 9 model and 3 UI contract tests passed in a local isolated test fixture. The model passed a strict TypeScript check; you must run the complete project build on your machine.
+New tests: **17** (10 parser/append tests, 3 storage workflow tests, 4 wiring contract tests). They passed in isolated Node/TypeScript fixtures; the new service passed a strict TypeScript check. Full React build and UI need local validation. If previous count is 208, expect **225 tests**.
 
-### Manual scenarios
+Visual cases:
 
-- Create a saved draft with modified scope/team, duplicate it, and confirm the new name and settings; no actual sprints; status Draft BL.
-- Establish a release BL, duplicate it, and verify the new copy is editable without a frozen BL; source remains locked.
-- Return to Management without saving the copy: expect a warning and no duplicate in saved list.
-- Duplicate again and **Save Draft**: return to Management and verify both distinct releases exist.
-- Reopen both, ensure no shared edits or altered baseline; ensure historical capacity panel correctly follows the selected release.
-- Trigger a duplicate while an existing draft has unsaved changes and cancel the warning: existing workspace remains intact.
+1. New unsaved release: no sprint entry allowed. Save Draft; Sprint 1 becomes available.
+2. Enter 20 SP for Sprint 1, save; then 15 SP for Sprint 2; cumulative is 35, not 15.
+3. Save zero SP for Sprint 3; it still advances completed sprint count.
+4. Refresh and reopen; values and chart persist; release-specific data only.
+5. Establish BL, record next sprint, verify forecast lines and completion sprints do not shift.
+6. Enter an amount but navigate to Management: discard warning appears; saving clears the warning.
+7. With unsaved Draft BL edits, Save Sprint is disabled until the draft is saved.
 
-Next suggested step: 5.4.5 — Actual Sprint Entry.
+## Separate Git commits
+
+Commit this **5.4.5a** patch first. Only afterward apply **5.4.5b** (capacity wording), so each remains independently reversible.
