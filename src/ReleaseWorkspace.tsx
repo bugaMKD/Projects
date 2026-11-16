@@ -327,22 +327,7 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
         </LineChart></ResponsiveContainer></div>
         <div className="chart-note"><span className="info-circle">i</span> The three BL forecasts come from historical productivity and future per-sprint SE/QA capacity. Established BL lines never change with actuals.</div>
       </section>
-      <div className="lower-grid">
-        <section className="panel"><SectionHeading eyebrow="02 / Capacity planning · Preserved from v1" title="PSP allocation" description="Four original mock buckets shown unchanged. Allocation math is postponed to a later iteration." />
-          <div className="allocation-bar">{capacityBuckets.map(b=><div key={b.label} style={{width:`${b.percent}%`,background:b.color}} title={`${b.label}: ${b.percent}%`}/>)}</div>
-          <div className="bucket-list">{capacityBuckets.map(b=><div className="bucket" key={b.label}><span className="bucket-color" style={{background:b.color}}/><div className="bucket-text"><strong>{b.label}</strong><small>{b.description}</small></div><span className="bucket-value">{b.percent}%</span></div>)}</div>
-          <div className="allocation-total">Original mock allocation total <strong>{totalAllocation}%</strong></div>
-        </section>
-        <section className="panel"><SectionHeading eyebrow={established ? '03 / Established BL outlook' : '03 / Draft BL delivery outlook'} title={established ? "Established BL completion forecast" : "Draft BL completion forecast"} description="Calculated completion sprints from editable scope, variation and historical productivity, with editable per-sprint SE/QA capacity." />
-          <div className="forecast-rows">{[
-            {label:'BL Optimistic',sprint:data.forecastFinishes.optimistic,rate:data.scenarioThroughputs.optimistic,color:'#19986f'},
-            {label:'BL Realistic',sprint:data.forecastFinishes.realistic,rate:data.scenarioThroughputs.realistic,color:'#3778e6'},
-            {label:'BL Pessimistic',sprint:data.forecastFinishes.pessimistic,rate:data.scenarioThroughputs.pessimistic,color:'#d79b34'}
-          ].map(f=><div className="forecast-row" key={f.label}><span className="forecast-dot" style={{background:f.color}}/><span className="forecast-name">{f.label}</span><span className="forecast-rate">{formatStoryPoints(f.rate)} SP/sprint</span><strong>{formatFinish(f.sprint)}</strong></div>)}</div>
-          <div className="divider"/><p className="outlook-note">These completion estimates are based on the BL inputs. Once established, actual delivery does not recalculate them.</p>
-        </section>
-      </div>
-      <section className="panel sprint-panel"><SectionHeading eyebrow="04 / Actual delivery" title="Completed sprint history" description="Record the incremental story points delivered in each completed sprint. Saved actuals update the burn-up but never change the established BL."/>
+      <section className="panel sprint-panel"><SectionHeading eyebrow="02 / Actual delivery" title="Completed sprint history" description="Record the incremental story points delivered in each completed sprint. Saved actuals update the burn-up but never change the established BL."/>
         <div style={{display:'flex',alignItems:'end',gap:12,flexWrap:'wrap',marginBottom:16}}>
           <label style={{display:'grid',gap:6,fontSize:13,fontWeight:600}}>
             Completed SP for Sprint {savedActuals.length + 1}
@@ -387,6 +372,21 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
               onClick={() => {setEditingSprintIndex(i);setEditingSprintText(String(points));setEditError(null);}}>Edit</button>}</td></tr>;
         })}</tbody></table></div>
       </section>
+      <div className="lower-grid">
+        <section className="panel"><SectionHeading eyebrow="03 / Capacity planning · Preserved from v1" title="PSP allocation" description="Four original mock buckets shown unchanged. Allocation math is postponed to a later iteration." />
+          <div className="allocation-bar">{capacityBuckets.map(b=><div key={b.label} style={{width:`${b.percent}%`,background:b.color}} title={`${b.label}: ${b.percent}%`}/>)}</div>
+          <div className="bucket-list">{capacityBuckets.map(b=><div className="bucket" key={b.label}><span className="bucket-color" style={{background:b.color}}/><div className="bucket-text"><strong>{b.label}</strong><small>{b.description}</small></div><span className="bucket-value">{b.percent}%</span></div>)}</div>
+          <div className="allocation-total">Original mock allocation total <strong>{totalAllocation}%</strong></div>
+        </section>
+        <section className="panel"><SectionHeading eyebrow={established ? '04 / Established BL outlook' : '04 / Draft BL delivery outlook'} title={established ? "Established BL completion forecast" : "Draft BL completion forecast"} description="Calculated completion sprints from editable scope, variation and historical productivity, with editable per-sprint SE/QA capacity." />
+          <div className="forecast-rows">{[
+            {label:'BL Optimistic',sprint:data.forecastFinishes.optimistic,rate:data.scenarioThroughputs.optimistic,color:'#19986f'},
+            {label:'BL Realistic',sprint:data.forecastFinishes.realistic,rate:data.scenarioThroughputs.realistic,color:'#3778e6'},
+            {label:'BL Pessimistic',sprint:data.forecastFinishes.pessimistic,rate:data.scenarioThroughputs.pessimistic,color:'#d79b34'}
+          ].map(f=><div className="forecast-row" key={f.label}><span className="forecast-dot" style={{background:f.color}}/><span className="forecast-name">{f.label}</span><span className="forecast-rate">{formatStoryPoints(f.rate)} SP/sprint</span><strong>{formatFinish(f.sprint)}</strong></div>)}</div>
+          <div className="divider"/><p className="outlook-note">These completion estimates are based on the BL inputs. Once established, actual delivery does not recalculate them.</p>
+        </section>
+      </div>
       <ReleaseHistoricalCapacityView historical={established?.historical ?? validHistorical} sprintMembers={established?.sprintMembers ?? validSprintMembers} established={!!established}/>
       <footer>PSP Delivery Simulator · Iteration 5.4.5 · Sprint actuals preview and release-specific capacity</footer>
     </main>

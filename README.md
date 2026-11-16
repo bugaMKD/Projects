@@ -1,25 +1,45 @@
-# PSP Delivery Simulator — 5.4.5c compatibility fix for older UI contract tests
+# PSP Delivery Simulator — Iteration 5.4.6: Workspace Panel Reordering
 
-**Test-only change:** No application source code, forecast engine, storage, or chart logic is modified.
+## Purpose
 
-Replace these three existing tests:
+This is a **layout-only change** based on the validated 5.4.5c ReleaseWorkspace implementation (including sprint editing and preview). No forecasting engine, repository, baseline model, event handler, or actual sprint logic is modified.
 
-- `tests/actual-sprint-ui-contract.test.mjs`
-- `tests/release-capacity-ui-contract.test.mjs`
-- `tests/workspace-ui-integration.test.mjs`
+The new order in **Release Workspace** is:
 
-Why:
-- 5.4.5c previews actual changes using `completedActuals = actualPreview ?? savedActuals`, so old source-pattern tests looking for direct `savedActuals` are outdated.
-- 5.4.5b renamed `Limiting role` to `Capacity balance`.
-- Save Draft now guards against pending sprint correction previews as well as invalid draft inputs.
+1. Release configuration / historical inputs / future team capacity / BL establishment (unchanged)
+2. Release metrics (unchanged)
+3. Release burn-up chart
+4. **Completed sprint history** (record, edit, preview, save and discard)
+5. **PSP allocation and BL Delivery Outlook**, side by side in the existing `lower-grid`
+6. Historical Productivity & Delivery Capacity (unchanged)
 
-The new assertions still check that the established BL uses the saved snapshot, preview actuals flow to the chart, the Capacity balance panel appears, and Save Draft remains explicit and gated.
+The displayed section numbers are adjusted: Actual delivery 02, PSP allocation 03, BL outlook 04.
 
-Validation of this patch against the 5.4.5c `App.tsx`, `ReleaseWorkspace.tsx` and 5.4.5b capacity panel: **14/14 targeted tests passed**. Then run your entire local suite and build:
+## Apply
+
+- **Replace** `src/ReleaseWorkspace.tsx` with this patch's file.
+- **Add** `tests/workspace-panel-order.test.mjs`.
+- Do not change `src/App.tsx` or any other file.
+
+If you made additional local edits to ReleaseWorkspace after applying 5.4.5c, compare/diff before replacing this file; alternatively, move the `<section className="panel sprint-panel"> ... </section>` block from after `lower-grid` to immediately after the burn-up `</section>`, then adjust the three section labels.
+
+## Validation
 
 ```powershell
 npm test
 npm run build
+npm run dev
 ```
 
-This patch only fixes the 4 failures visible in your pasted error log; it does not guarantee additional failures elsewhere, and it does not replace an actual UI/behavior test.
+Four new focused layout/source-contract tests have passed with the patch. If the previous validated total was **245**, expected suite total is **249**. The full application build still requires local validation.
+
+Visually verify that the Sprint History grid appears right under the burn-up, the PSP allocation and BL outlook remain side by side, and all sprint edit/preview/save controls still work. Confirm that forecast lines, history values and established BL remain unchanged.
+
+## Suggested separate commit
+
+```powershell
+git add src/ReleaseWorkspace.tsx tests/workspace-panel-order.test.mjs
+git commit -m "refactor(ui): place sprint actuals below release burn-up"
+```
+
+Next independent iteration: collapsible configuration panels.
