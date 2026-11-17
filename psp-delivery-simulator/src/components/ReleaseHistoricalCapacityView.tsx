@@ -19,7 +19,7 @@ export function ReleaseHistoricalCapacityView({ historical, sprintMembers, estab
     <div className="section-heading">
       <div className="eyebrow">05 / Selected release · {established ? 'Established BL assumptions' : 'Committed Draft BL inputs'}</div>
       <h2>Historical Productivity &amp; Delivery Capacity</h2>
-      <p>Historical effort totals and future capacity per sprint for this release. Values reflect the assumptions used by the BL forecast, not a static example.</p>
+      <p>Historical effort totals, productivity and future capacity breakdown for this release. Planning indicators are shown in Baseline status.</p>
     </div>
     <div className="metric-grid" style={{ marginBottom: 18 }}>
       <div className="metric"><div className="metric__label">Historical delivery</div><div className="metric__value">{fmt(summary.historicalDeliveredStoryPoints)} SP</div><div className="metric__detail">Total completed in reference history</div></div>
@@ -34,10 +34,6 @@ export function ReleaseHistoricalCapacityView({ historical, sprintMembers, estab
           <td style={cell}>{fmt(r.futureAvailableDaysPerSprint)}</td><td style={cell}>{fmt(r.futureEffectiveDaysPerSprint)}</td><td style={cell}>{fmt(r.potentialStoryPointsPerSprint)}</td>
         </tr>)}</tbody>
       </table>
-    </div>
-    <div style={{display:'flex',flexWrap:'wrap',gap:18,marginTop:18}}>
-      <div><strong>Realistic capacity:</strong> {fmt(summary.realisticStoryPointsPerSprint)} SP/sprint</div>
-      <div><strong>Capacity balance:</strong> {summary.limitingRole === 'SE' ? 'SE limiting' : summary.limitingRole === 'QA' ? 'QA limiting' : summary.limitingRole}</div>
     </div>
     <p style={{fontSize:12,color:'#64738b',marginTop:10}}>Effective future days = available days × productivity. The realistic delivery rate is constrained by the lower SE/QA potential. When potentials match above zero, capacity is balanced relative to historical productivity: neither role is the bottleneck. This panel is read-only; edit assumptions in the configuration sections above.</p>
   </section>;

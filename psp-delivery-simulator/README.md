@@ -1,45 +1,38 @@
-# PSP Delivery Simulator — Iteration 5.4.6: Workspace Panel Reordering
+# PSP Delivery Simulator — Iteration 5.4.7: BL Status Capacity Summary
 
-## Purpose
+## Scope
+Move the existing headline **Realistic capacity** and **Capacity balance** indicators from the bottom Historical Productivity & Delivery Capacity panel into **Baseline status**. The lower panel retains historical statistics and the per-role future capacity breakdown.
 
-This is a **layout-only change** based on the validated 5.4.5c ReleaseWorkspace implementation (including sprint editing and preview). No forecasting engine, repository, baseline model, event handler, or actual sprint logic is modified.
-
-The new order in **Release Workspace** is:
-
-1. Release configuration / historical inputs / future team capacity / BL establishment (unchanged)
-2. Release metrics (unchanged)
-3. Release burn-up chart
-4. **Completed sprint history** (record, edit, preview, save and discard)
-5. **PSP allocation and BL Delivery Outlook**, side by side in the existing `lower-grid`
-6. Historical Productivity & Delivery Capacity (unchanged)
-
-The displayed section numbers are adjusted: Actual delivery 02, PSP allocation 03, BL outlook 04.
+- Draft BL uses the current valid draft historical productivity and SE/QA sprint members.
+- Established BL uses its locked historical and team-capacity assumptions.
+- 0 / 0 throughput displays **No delivery capacity**; missing historical rates display **Unavailable**, using the established summary service.
+- Existing `summarizeReleaseCapacity` calculations are reused unchanged. No persistence, forecasts, or sprint editing changes.
 
 ## Apply
+Replace the two source files from this ZIP in `C:\Projects\psp-delivery-simulator`:
 
-- **Replace** `src/ReleaseWorkspace.tsx` with this patch's file.
-- **Add** `tests/workspace-panel-order.test.mjs`.
-- Do not change `src/App.tsx` or any other file.
+- `src/ReleaseWorkspace.tsx` (based on the Iteration 5.4.6 patch)
+- `src/components/ReleaseHistoricalCapacityView.tsx` (based on 5.4.5b)
 
-If you made additional local edits to ReleaseWorkspace after applying 5.4.5c, compare/diff before replacing this file; alternatively, move the `<section className="panel sprint-panel"> ... </section>` block from after `lower-grid` to immediately after the burn-up `</section>`, then adjust the three section labels.
+Add `tests/bl-capacity-status-ui.test.mjs` and **replace** `tests/release-capacity-ui-contract.test.mjs` (the old assertion still expected the balance headline in the historical panel).
 
-## Validation
+Because you now work within the parent `C:\Projects` Git repository, commit **only these three files** from its root; avoid `git add .` (which could stage local backups or patches).
+
+## Test
 
 ```powershell
+cd C:\Projects\psp-delivery-simulator
 npm test
 npm run build
 npm run dev
 ```
 
-Four new focused layout/source-contract tests have passed with the patch. If the previous validated total was **245**, expected suite total is **249**. The full application build still requires local validation.
+Five new focused UI contract tests are supplied, plus the updated existing capacity panel contract test. Verify Draft inputs update the two indicators; established BL keeps them frozen; and the bottom panel no longer duplicates them.
 
-Visually verify that the Sprint History grid appears right under the burn-up, the PSP allocation and BL outlook remain side by side, and all sprint edit/preview/save controls still work. Confirm that forecast lines, history values and established BL remain unchanged.
-
-## Suggested separate commit
+## Commit (from Git repository root)
 
 ```powershell
-git add src/ReleaseWorkspace.tsx tests/workspace-panel-order.test.mjs
-git commit -m "refactor(ui): place sprint actuals below release burn-up"
+cd C:\Projects
+git add psp-delivery-simulator/src/ReleaseWorkspace.tsx psp-delivery-simulator/src/components/ReleaseHistoricalCapacityView.tsx psp-delivery-simulator/tests/bl-capacity-status-ui.test.mjs psp-delivery-simulator/tests/release-capacity-ui-contract.test.mjs
+git commit -m "refactor(ui): move capacity summary into BL status"
 ```
-
-Next independent iteration: collapsible configuration panels.

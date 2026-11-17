@@ -13,6 +13,7 @@ import { commitDraftHistoricalForm } from './models/DraftHistoricalCommit';
 import { createDraftSprintCapacityForm, parseDraftSprintCapacityForm } from './models/DraftSprintCapacityInput';
 import { addDraftSprintMember, commitDraftSprintCapacityForm, removeDraftSprintMember } from './models/DraftSprintCapacityCommit';
 import { ReleaseHistoricalCapacityView } from './components/ReleaseHistoricalCapacityView';
+import { summarizeReleaseCapacity } from './services/releaseCapacitySummary';
 import { establishBaseline, type EstablishedBaseline } from './models/EstablishedBaseline';
 import { buildEstablishedBaselineDataset } from './services/establishedBaselineDataset';
 import { getBaselineEstablishmentEligibility } from './models/BaselineEstablishmentEligibility';
@@ -77,6 +78,13 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
   const data = useMemo(() => established
     ? buildEstablishedBaselineDataset(established, completedActuals)
     : draftData, [established, completedActuals, draftData]);
+  // Planning summary follows draft inputs until the BL is established, then uses its frozen assumptions.
+  const baselineCapacity = useMemo(() => summarizeReleaseCapacity(
+    established?.historical ?? validHistorical,
+    established?.sprintMembers ?? validSprintMembers,
+  ), [established, validHistorical, validSprintMembers]);
+  const capacityBalance = baselineCapacity.limitingRole === 'SE' ? 'SE limiting'
+    : baselineCapacity.limitingRole === 'QA' ? 'QA limiting' : baselineCapacity.limitingRole;
   const displayedRelease = established?.release ?? validDraft;
   const eligibility = getBaselineEstablishmentEligibility(form, validDraft, historicalForm, validHistorical, capacityForm, validSprintMembers);
   const currentInputs = useMemo<ReleaseInputs>(() => ({
@@ -289,6 +297,10 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
       <section className="panel" aria-label="Baseline establishment" style={{marginBottom:20}}>
         <div className="section-heading"><div className="eyebrow">Baseline status</div><h2>{established ? 'Established BL' : 'Draft BL'}</h2>
           <p>{established ? 'Baseline inputs and the BL optimistic, realistic and pessimistic lines are locked. Actual delivery remains independent.' : 'Review and apply all release, historical and capacity edits before establishing the baseline.'}</p></div>
+        <div className="metric-grid" aria-label="BL planning capacity" style={{marginBottom:18}}>
+          <Metric title="Realistic capacity" value={`${formatStoryPoints(baselineCapacity.realisticStoryPointsPerSprint)} SP/sprint`} detail={established ? 'Frozen BL capacity' : 'Current draft planning capacity'} />
+          <Metric title="Capacity balance" value={capacityBalance} detail={established ? 'Frozen BL team balance' : 'Current draft team balance'} />
+        </div>
         {!established && <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
           <button type="button" disabled={!eligibility.allowed || actualPreviewDirty || pendingSprintCorrection} onClick={saveDraft}
             style={{padding:'11px 18px',border:'1px solid #2563eb',borderRadius:8,color:'#2563eb',background:'#fff',fontWeight:700,cursor:eligibility.allowed?'pointer':'not-allowed'}}>
