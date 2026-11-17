@@ -13,10 +13,12 @@ test('5.4.8 release planning is default, with accessible in-workspace tabs', () 
   assert.match(workspace, /role="tabpanel" id="release-planning-panel"/);
   assert.match(workspace, /role="tabpanel" id="historical-data-panel"/);
 });
-test('5.4.8 release planning contains future capacity, BL, chart, actuals, allocation and outlook', () => {
+test('release planning retains baseline actions and monitoring after BL Status removal', () => {
   assert.ok(pos('id="release-planning-panel"') < pos('aria-label="BL future team capacity"'));
-  assert.ok(pos('aria-label="BL future team capacity"') < pos('aria-label="Baseline establishment"'));
-  assert.ok(pos('aria-label="Baseline establishment"') < pos('<section className="panel chart-panel">'));
+  assert.ok(pos('aria-label="BL future team capacity"') < pos('aria-label="Baseline actions"'));
+  assert.ok(pos('aria-label="Baseline actions"') < pos('aria-label="Baseline status messages"'));
+  assert.ok(pos('aria-label="Baseline status messages"') < pos('<section className="panel chart-panel">'));
+  assert.doesNotMatch(workspace, /aria-label="Baseline establishment"/);
   assert.ok(pos('<section className="panel chart-panel">') < pos('<section className="panel sprint-panel">'));
   assert.ok(pos('<section className="panel sprint-panel">') < pos('<div className="lower-grid">'));
   assert.ok(pos('mode="future"') < pos('id="historical-data-panel"'));
