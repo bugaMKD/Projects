@@ -1,4 +1,5 @@
 import { RELEASE_SCHEMA_VERSION, type ReleaseCollectionV1, type ReleaseRecord } from '../models/ReleaseRecord';
+import { validEffort } from '../models/SprintResult';
 import type { KeyValueStorage, ReleaseRepository } from './ReleaseRepository';
 
 export const RELEASES_STORAGE_KEY = 'psp-delivery-simulator:releases:v1';
@@ -7,10 +8,15 @@ export const RELEASES_STORAGE_KEY = 'psp-delivery-simulator:releases:v1';
 export class ReleaseStorageError extends Error {
   constructor(message: string, options?: { cause?: unknown }) {
     super(message);
-    if (options && 'cause' in options) {
-      Object.defineProperty(this, 'cause', { value: options.cause, configurable: true });
-    }
     this.name = 'ReleaseStorageError';
+    if (options?.cause !== undefined) {
+      Object.defineProperty(this, 'cause', {
+        value: options.cause,
+        enumerable: false,
+        configurable: true,
+        writable: true,
+      });
+    }
   }
 }
 
@@ -67,6 +73,12 @@ function validRelease(x: unknown): x is ReleaseRecord {
   if (!object(x) || x.schemaVersion !== RELEASE_SCHEMA_VERSION || !nonEmpty(x.id) ||
       !date(x.createdAt) || !date(x.updatedAt) ||
       !arrayOf(x.completedSprintPoints, nonnegative) || !validateInputs(x.draft)) return false;
+  // v1 records with no sprintResults remain readable; first actuals save adds the richer structure.
+  if (x.sprintResults !== undefined && (!Array.isArray(x.sprintResults) ||
+    x.sprintResults.length !== x.completedSprintPoints.length ||
+    !x.sprintResults.every((r, i) => object(r) && nonnegative(r.completedStoryPoints) &&
+      r.completedStoryPoints === (x.completedSprintPoints as number[])[i] &&
+      validEffort(r.seEffectiveDays) && validEffort(r.qaEffectiveDays)))) return false;
   if (x.baselineStatus === 'draft') return x.establishedBaseline === null;
   if (x.baselineStatus !== 'established' || !validateBaseline(x.establishedBaseline)) return false;
   return sameInputs(x.draft as Record<string, unknown>, x.establishedBaseline as Record<string, unknown>);

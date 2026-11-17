@@ -4,15 +4,15 @@ import { readFileSync } from 'node:fs';
 const workspace=readFileSync(new URL('../src/ReleaseWorkspace.tsx',import.meta.url),'utf8');
 const app=readFileSync(new URL('../src/App.tsx',import.meta.url),'utf8');
 test('preview draws actuals from the effective preview, not saved array',()=>{
-  assert.match(workspace,/completedActuals = actualPreview \?\? savedActuals/);
+  assert.match(workspace,/completedActuals = displayedResults\.map/);
   assert.match(workspace,/buildEstablishedBaselineDataset\(established, completedActuals\)/);
   assert.match(workspace,/completedSprintPoints: completedActuals/);
 });
 test('only explicit Save Changes sends corrections to persistence',()=>{
   assert.match(workspace,/onSaveActualChanges\(actualPreview\)/);
   assert.match(workspace,/onClick=\{saveSprintCorrections\}/);
-  assert.match(app,/persistWorkspaceActuals\(repository, session/);
-  assert.match(app,/validateSprintEditPreview\(/);
+  assert.match(app,/persistWorkspaceSprintResults\(repository, session/);
+  assert.match(app,/validateSprintResults\(/);
 });
 test('preview is protected by unsaved-changes navigation warnings',()=>{
   assert.match(workspace,/pendingSprintCorrection \|\| actualPreviewDirty/);
