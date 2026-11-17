@@ -45,6 +45,7 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
   const initial = session.committed;
   const savedActuals = session.saved.completedSprintPoints;
   const established = session.saved.establishedBaseline;
+  const [workspaceTab, setWorkspaceTab] = useState<'planning' | 'history'>('planning');
   const [actionError, setActionError] = useState<string | null>(null);
   const [sprintPointsText, setSprintPointsText] = useState('');
   const [sprintError, setSprintError] = useState<string | null>(null);
@@ -202,6 +203,13 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
     <header className="topbar"><div className="brand-mark">P</div><div className="brand-title"><strong>PSP</strong><span>Delivery Simulator</span></div><div className="topbar-right"><span className="topbar-dot"/> Local prototype <span className="mock-chip">{established ? 'ESTABLISHED BL' : 'DRAFT BL'}</span></div></header>
     <main className="container">
       <div className="page-intro"><div><div className="eyebrow">Release intelligence / Overview</div><h1>{displayedRelease.releaseName}</h1><p>Review the release baseline and track actual delivery. After establishment, BL assumptions and all three forecasts are locked.</p></div><div className="sprint-pill"><span className="status-dot"/> Completed sprint {count}</div></div>
+      <nav aria-label="Release workspace tabs" role="tablist" style={{display:'flex',gap:10,marginBottom:20,flexWrap:'wrap'}}>
+        <button id="release-planning-tab" role="tab" type="button" aria-selected={workspaceTab === 'planning'} aria-controls="release-planning-panel" onClick={() => setWorkspaceTab('planning')}
+          style={{padding:'10px 18px',borderRadius:8,border:'1px solid #cbd5e1',background:workspaceTab === 'planning' ? '#2563eb' : '#fff',color:workspaceTab === 'planning' ? '#fff' : '#334155',fontWeight:700,cursor:'pointer'}}>Release Planning</button>
+        <button id="historical-data-tab" role="tab" type="button" aria-selected={workspaceTab === 'history'} aria-controls="historical-data-panel" onClick={() => setWorkspaceTab('history')}
+          style={{padding:'10px 18px',borderRadius:8,border:'1px solid #cbd5e1',background:workspaceTab === 'history' ? '#2563eb' : '#fff',color:workspaceTab === 'history' ? '#fff' : '#334155',fontWeight:700,cursor:'pointer'}}>Historical Data</button>
+      </nav>
+      <div role="tabpanel" id="release-planning-panel" aria-labelledby="release-planning-tab" hidden={workspaceTab !== 'planning'}>
       <section className="panel" aria-label="BL release configuration" style={{marginBottom:20}}>
         <div className="section-heading"><div className="eyebrow">{established ? '00 / Established baseline · Locked' : '00 / Draft baseline · Not established'}</div><h2>Release Configuration</h2><p>Edit the scope, then leave the field (or press Enter) to update the three BL forecasts. Variation updates immediately. After establishing the baseline, the inputs become read-only.</p></div>
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(190px, 1fr))',gap:18,alignItems:'start'}}>
@@ -227,26 +235,6 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
           </label>
         </div>
         <p style={{margin:'14px 0 0',fontSize:12,color:'#64738b'}}>{established ? 'Established BL · Inputs locked and saved in this browser.' : formHasErrors ? 'Invalid form input: the chart retains the last valid draft until all inputs are valid.' : 'Draft BL · Use Save Draft to persist the current inputs.'}</p>
-      </section>
-      <section className="panel" aria-label="BL historical productivity" style={{marginBottom:20}}>
-        <div className="section-heading"><div className="eyebrow">{established ? 'Historical inputs / Established BL' : 'Historical inputs / Draft BL · Not established'}</div><h2>Historical Productivity</h2><p>Enter the historical totals (not averages per sprint). Leave a field or press Enter to apply the changes to all three Draft BL forecasts. Future capacity is configured separately below.</p></div>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(190px, 1fr))',gap:18,alignItems:'start'}}>
-          {([
-            {key:'deliveredStoryPointsText' as const, label:'Historical delivered SP'},
-            {key:'seEffectiveDaysText' as const, label:'Historical SE effective days'},
-            {key:'qaEffectiveDaysText' as const, label:'Historical QA effective days'},
-          ]).map(field => <label key={field.key} style={{display:'grid',gap:7,fontSize:13,fontWeight:600}}>
-            {field.label}
-            <input disabled={!!established} aria-label={field.label} type="number" min="0.000001" step="any" value={historicalForm[field.key]}
-              onChange={event => setHistoricalForm(current => ({...current,[field.key]:event.target.value}))}
-              onBlur={commitHistorical}
-              onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); }}
-              aria-invalid={!!historicalValidation.errors[field.key]}
-              style={{padding:'10px 12px',border:'1px solid #cbd5e1',borderRadius:8,font:'inherit',width:'100%',boxSizing:'border-box'}} />
-            {historicalValidation.errors[field.key] && <small role="alert" style={{color:'#b42318'}}>{historicalValidation.errors[field.key]}</small>}
-          </label>)}
-        </div>
-        <p style={{margin:'14px 0 0',fontSize:12,color:'#64738b'}}>{established ? 'Historical assumptions locked in the established BL.' : historicalValidation.historical === null ? 'Invalid historical inputs: the chart retains the last valid historical values.' : 'Draft historical values · Applied on field exit or Enter · Save Draft to persist.'}</p>
       </section>
       <section className="panel" aria-label="BL future team capacity" style={{marginBottom:20}}>
         <div className="section-heading"><div className="eyebrow">{established ? 'Future capacity / Established BL' : 'Future capacity / Draft BL · Not established'}</div><h2>Future SE/QA Capacity</h2><p>Configure planned available days <strong>per future sprint</strong> and individual productivity. Leave a field or press Enter to apply changes. These are not historical effective days.</p></div>
@@ -399,8 +387,33 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
           <div className="divider"/><p className="outlook-note">These completion estimates are based on the BL inputs. Once established, actual delivery does not recalculate them.</p>
         </section>
       </div>
-      <ReleaseHistoricalCapacityView historical={established?.historical ?? validHistorical} sprintMembers={established?.sprintMembers ?? validSprintMembers} established={!!established}/>
-      <footer>PSP Delivery Simulator · Iteration 5.4.5 · Sprint actuals preview and release-specific capacity</footer>
+      <ReleaseHistoricalCapacityView historical={established?.historical ?? validHistorical} sprintMembers={established?.sprintMembers ?? validSprintMembers} established={!!established} mode="future"/>
+      </div>
+      <div role="tabpanel" id="historical-data-panel" aria-labelledby="historical-data-tab" hidden={workspaceTab !== 'history'}>
+        <div className="page-intro"><div><div className="eyebrow">Historical reference / Selected release</div><h2>Historical Data — {displayedRelease.releaseName}</h2><p>The historical assumptions belong to this release. They are frozen when its baseline is established, and never shared or overwritten by another release.</p></div></div>
+      <section className="panel" aria-label="BL historical productivity" style={{marginBottom:20}}>
+        <div className="section-heading"><div className="eyebrow">{established ? 'Historical inputs / Established BL' : 'Historical inputs / Draft BL · Not established'}</div><h2>Historical Productivity</h2><p>Enter the historical totals (not averages per sprint). Leave a field or press Enter to apply the changes to all three Draft BL forecasts. Future capacity is configured separately below.</p></div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(190px, 1fr))',gap:18,alignItems:'start'}}>
+          {([
+            {key:'deliveredStoryPointsText' as const, label:'Historical delivered SP'},
+            {key:'seEffectiveDaysText' as const, label:'Historical SE effective days'},
+            {key:'qaEffectiveDaysText' as const, label:'Historical QA effective days'},
+          ]).map(field => <label key={field.key} style={{display:'grid',gap:7,fontSize:13,fontWeight:600}}>
+            {field.label}
+            <input disabled={!!established} aria-label={field.label} type="number" min="0.000001" step="any" value={historicalForm[field.key]}
+              onChange={event => setHistoricalForm(current => ({...current,[field.key]:event.target.value}))}
+              onBlur={commitHistorical}
+              onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); }}
+              aria-invalid={!!historicalValidation.errors[field.key]}
+              style={{padding:'10px 12px',border:'1px solid #cbd5e1',borderRadius:8,font:'inherit',width:'100%',boxSizing:'border-box'}} />
+            {historicalValidation.errors[field.key] && <small role="alert" style={{color:'#b42318'}}>{historicalValidation.errors[field.key]}</small>}
+          </label>)}
+        </div>
+        <p style={{margin:'14px 0 0',fontSize:12,color:'#64738b'}}>{established ? 'Historical assumptions locked in the established BL.' : historicalValidation.historical === null ? 'Invalid historical inputs: the chart retains the last valid historical values.' : 'Draft historical values · Applied on field exit or Enter · Save Draft to persist.'}</p>
+      </section>
+      <ReleaseHistoricalCapacityView historical={established?.historical ?? validHistorical} sprintMembers={established?.sprintMembers ?? validSprintMembers} established={!!established} mode="historical"/>
+      </div>
+      <footer>PSP Delivery Simulator · Iteration 5.4.8 · Release-specific historical data</footer>
     </main>
   </div>;
 }
