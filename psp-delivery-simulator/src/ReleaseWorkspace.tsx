@@ -91,7 +91,22 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
     established?.sprintMembers ?? validSprintMembers,
   ), [established, validHistorical, validSprintMembers]);
   const capacityBalance = baselineCapacity.limitingRole === 'SE' ? 'SE limiting'
-    : baselineCapacity.limitingRole === 'QA' ? 'QA limiting' : baselineCapacity.limitingRole;
+    : baselineCapacity.limitingRole === 'QA' ? 'QA limiting'
+    : baselineCapacity.limitingRole === 'Unavailable' ? 'Not available'
+    : baselineCapacity.realisticStoryPointsPerSprint === 0 ? 'No delivery capacity' : 'Balanced';
+  // Comparison isolates future-team changes; historical productivity stays constant.
+  // The validated chart dataset remains the source for forecasted completion.
+  const referenceCapacity = useMemo(() => summarizeReleaseCapacity(
+    established?.historical ?? validHistorical,
+    established?.sprintMembers ?? initial.sprintMembers,
+  ), [established, validHistorical, initial.sprintMembers]);
+  const currentVelocity = baselineCapacity.realisticStoryPointsPerSprint;
+  const referenceVelocity = referenceCapacity.realisticStoryPointsPerSprint;
+  const velocityDelta = currentVelocity === null || referenceVelocity === null
+    ? null : currentVelocity - referenceVelocity;
+  const velocityDeltaLabel = velocityDelta === null ? 'Not available'
+    : Math.abs(velocityDelta) < 1e-9 ? 'No change'
+    : `${velocityDelta > 0 ? '+' : ''}${formatStoryPoints(velocityDelta)} SP/sprint`;
   const displayedRelease = established?.release ?? validDraft;
   const eligibility = getBaselineEstablishmentEligibility(form, validDraft, historicalForm, validHistorical, capacityForm, validSprintMembers);
   const currentInputs = useMemo<ReleaseInputs>(() => ({
@@ -300,6 +315,23 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
           <button disabled={!!established} type="button" onClick={() => addCapacityMember('SE')} style={{padding:'9px 14px',borderRadius:8,border:'1px solid #cbd5e1',background:'#f8fafc',cursor:'pointer'}}>+ Add SE</button>
           <button disabled={!!established} type="button" onClick={() => addCapacityMember('QA')} style={{padding:'9px 14px',borderRadius:8,border:'1px solid #cbd5e1',background:'#f8fafc',cursor:'pointer'}}>+ Add QA</button>
         </div>
+        <div aria-label="Capacity impact and forecast visibility" style={{marginTop:18,padding:16,border:'1px solid #dbe4ef',borderRadius:12,background:'#f8fafc'}}>
+          <div style={{fontWeight:700,fontSize:15,marginBottom:5}}>Capacity impact · Forecast visibility</div>
+          <p style={{fontSize:12,color:'#64738b',margin:'0 0 14px'}}>
+            {established ? 'Frozen baseline assumptions. This capacity impact summary is read-only.'
+              : 'Values update after valid member inputs are applied (leave the field or press Enter). The release burn-up chart uses the same applied inputs.'}
+          </p>
+          <div className="metric-grid" aria-label="Capacity impact metrics">
+            <Metric title="SE potential throughput" value={`${formatStoryPoints(baselineCapacity.se.potentialStoryPointsPerSprint)} SP/sprint`} detail="Historical SE productivity × planned SE effective days" />
+            <Metric title="QA potential throughput" value={`${formatStoryPoints(baselineCapacity.qa.potentialStoryPointsPerSprint)} SP/sprint`} detail="Historical QA productivity × planned QA effective days" />
+            <Metric title="Forecasted realistic velocity" value={`${formatStoryPoints(currentVelocity)} SP/sprint`} detail={`Capacity balance: ${capacityBalance}`} />
+            <Metric title="Expected realistic completion" value={formatFinish(data.forecastFinishes.realistic)} detail={established ? 'Frozen BL completion forecast' : 'Calculated from applied Draft BL inputs'} />
+          </div>
+          {!established && <p role="status" style={{fontSize:12,color:'#475569',margin:'12px 0 0'}}>
+            <strong>Capacity impact vs saved team setup:</strong> {velocityDeltaLabel}.
+            {capacityValidation.members === null ? ' Pending capacity inputs are invalid; the chart and metrics still show the last valid configuration.' : ' This isolates changes in future team capacity, keeping historical productivity constant.'}
+          </p>}
+        </div>
         <p style={{margin:'14px 0 0',fontSize:12,color:capacityValidation.members===null?'#b42318':'#64738b'}} role={capacityValidation.members===null?'alert':undefined}>
           {established ? 'Future team capacity assumptions locked in the established BL.' : capacityValidation.errors.form ?? (capacityValidation.members===null ? 'Invalid future capacity: the graph keeps the last valid team configuration.' : 'Draft per-sprint capacity · Save Draft to persist · Zero capacity means Not forecastable.')}
         </p>
@@ -341,7 +373,7 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
           <Tooltip contentStyle={{borderRadius:12,border:'1px solid #e0e6ef'}} />
           <Legend verticalAlign="bottom" height={32} wrapperStyle={{paddingTop:10,fontSize:12}} />
           <ReferenceLine x={count === 0 ? 'Start' : `S${count}`} stroke="#acb9cc" strokeDasharray="3 4" label={{value:'Now',fill:'#64738b',fontSize:12,position:'top'}}/>
-          <Line name="Release scope" type="linear" dataKey="scope" stroke="#dc2626" strokeWidth={2} strokeDasharray="6 5" dot={false} isAnimationActive={false}/>
+          <Line name="Release scope" type="linear" dataKey="scope" stroke="#dc2626" strokeWidth={2} dot={false} isAnimationActive={false}/>
           <Line name="BL Optimistic" type="linear" dataKey="optimistic" stroke="#19986f" strokeWidth={2.5} dot={false} isAnimationActive={false}/>
           <Line name="BL Realistic" type="linear" dataKey="realistic" stroke="#3778e6" strokeWidth={2.5} dot={false} isAnimationActive={false}/>
           <Line name="BL Pessimistic" type="linear" dataKey="pessimistic" stroke="#d79b34" strokeWidth={2.5} dot={false} isAnimationActive={false}/>

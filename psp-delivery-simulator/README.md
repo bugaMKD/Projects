@@ -1646,3 +1646,43 @@ Verify SE limiting, QA limiting, Balanced, No delivery capacity, and old SP-only
 git add psp-delivery-simulator/src/ReleaseWorkspace.tsx psp-delivery-simulator/src/services/sprintCapacityBalance.ts psp-delivery-simulator/tests/sprint-capacity-balance.test.mjs psp-delivery-simulator/tests/sprint-capacity-balance-ui.test.mjs
 git commit -m "feat: show actual sprint capacity balance"
 ```
+
+
+# PSP Delivery Simulator — Iteration 5.4.11: Capacity Impact & Forecast Visibility
+
+Based on the distributed and validated **5.4.10** workspace. This patch changes only the Release Workspace display: no persisted-data, forecast-engine, baseline, or sprint-result changes.
+
+## Apply
+
+From the ZIP, replace `src/ReleaseWorkspace.tsx` and add `tests/capacity-impact-ui.test.mjs` in the PSP project. Review diffs if you edited the workspace after 5.4.10.
+
+## Behavior
+
+- A compact **Capacity impact · Forecast visibility** summary appears directly below the editable future SE/QA members, and above BL Status.
+- Shows SE and QA potential SP/sprint, forecasted realistic velocity, capacity balance, and expected realistic completion sprint.
+- The completion sprint comes from `data.forecastFinishes.realistic` (the existing forecast calculation). The velocity and role potentials come from the established release capacity summary.
+- **Draft BL:** values change after a valid field is committed by blur or Enter; the chart is driven by those same applied inputs. Changes still require Save Draft to persist.
+- **Delta:** displayed realistic velocity compared to the saved/opened release team setup with the **same currently applied historical productivity**. This isolates future team changes; it is not a comparison against recorded sprint actuals or a revised forecast. After saving, this comparison is relative to the newly saved inputs when workspace state is refreshed. Pending invalid input leaves the previous valid results in place.
+- **Established BL:** values use the locked snapshot. No draft delta is displayed.
+- Zero realistic throughput shows *No delivery capacity*, unavailable ratios show *Not available*.
+- Numeric entry remains unchanged. No sliders or duplicate burn-up chart.
+
+## Validate
+
+```powershell
+cd C:\Projects\psp-delivery-simulator
+npm test
+npm run build
+npm run dev
+```
+
+Suggested UI checks: change one QA member productivity from 100 to 50, leave the field, inspect QA potential and realistic velocity plus forecasted finish, then restore. Verify that SE-limited changes do not erroneously lower realistic velocity. Save/reopen Draft BL and check the reference delta. Verify Established BL remains read-only and its three forecast lines never change. Confirm an invalid numeric field holds the last valid capacity and shows validation feedback.
+
+## Commit
+
+```powershell
+cd C:\Projects
+git add psp-delivery-simulator/src/ReleaseWorkspace.tsx psp-delivery-simulator/tests/capacity-impact-ui.test.mjs
+git commit -m "feat(ui): show capacity impact and forecast velocity near team inputs"
+```
+
