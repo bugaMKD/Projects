@@ -13,6 +13,7 @@ import { createDraftSprintCapacityForm, parseDraftSprintCapacityForm } from './m
 import { addDraftSprintMember, commitDraftSprintCapacityForm, removeDraftSprintMember } from './models/DraftSprintCapacityCommit';
 import { ReleaseHistoricalCapacityView } from './components/ReleaseHistoricalCapacityView';
 import { summarizeReleaseCapacity } from './services/releaseCapacitySummary';
+import { calculateSprintCapacityBalance } from './services/sprintCapacityBalance';
 import { establishBaseline, type EstablishedBaseline } from './models/EstablishedBaseline';
 import { buildEstablishedBaselineDataset } from './services/establishedBaselineDataset';
 import { getBaselineEstablishmentEligibility } from './models/BaselineEstablishmentEligibility';
@@ -340,7 +341,7 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
           <Tooltip contentStyle={{borderRadius:12,border:'1px solid #e0e6ef'}} />
           <Legend verticalAlign="bottom" height={32} wrapperStyle={{paddingTop:10,fontSize:12}} />
           <ReferenceLine x={count === 0 ? 'Start' : `S${count}`} stroke="#acb9cc" strokeDasharray="3 4" label={{value:'Now',fill:'#64738b',fontSize:12,position:'top'}}/>
-          <Line name="Release scope" type="linear" dataKey="scope" stroke="#DC2626" strokeWidth={2} dot={false} isAnimationActive={false}/>
+          <Line name="Release scope" type="linear" dataKey="scope" stroke="#dc2626" strokeWidth={2} strokeDasharray="6 5" dot={false} isAnimationActive={false}/>
           <Line name="BL Optimistic" type="linear" dataKey="optimistic" stroke="#19986f" strokeWidth={2.5} dot={false} isAnimationActive={false}/>
           <Line name="BL Realistic" type="linear" dataKey="realistic" stroke="#3778e6" strokeWidth={2.5} dot={false} isAnimationActive={false}/>
           <Line name="BL Pessimistic" type="linear" dataKey="pessimistic" stroke="#d79b34" strokeWidth={2.5} dot={false} isAnimationActive={false}/>
@@ -388,11 +389,13 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
           </div>
         </div>}
         {editError && <p role="alert" style={{color:'#b42318'}}>{editError}</p>}
-        <div className="sprint-table-wrap"><table><thead><tr><th>Sprint</th><th>Completed this sprint</th><th>SE effective days</th><th>QA effective days</th><th>Cumulative completed</th><th>BL Realistic</th><th>Variance vs BL Realistic</th><th>Action</th></tr></thead><tbody>{completedActuals.map((points,i)=>{
+        <div className="sprint-table-wrap"><table><thead><tr><th>Sprint</th><th>Completed this sprint</th><th>SE effective days</th><th>QA effective days</th><th>Actual capacity balance</th><th>Cumulative completed</th><th>BL Realistic</th><th>Variance vs BL Realistic</th><th>Action</th></tr></thead><tbody>{completedActuals.map((points,i)=>{
           const cumulative=completedActuals.slice(0,i+1).reduce((s,v)=>s+v,0);
           const expected=data.chartData[i+1]?.realistic ?? null;
           const diff=expected === null ? null : cumulative-expected;
           const sprintResult = displayedResults[i];
+          // Use this release's historical reference, frozen once the BL is established.
+          const sprintBalance = calculateSprintCapacityBalance(sprintResult, established?.historical ?? validHistorical);
           return <tr key={i}><td>Sprint {i+1}</td><td>
             {editingSprintIndex === i ? <input aria-label={`Edit Sprint ${i+1} completed SP`} type="number" min="0" step="any"
               value={editingSprintText} onChange={event => {setEditingSprintText(event.target.value);setEditError(null);}}
@@ -403,6 +406,7 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
           <td>{editingSprintIndex === i ? <input aria-label={`Edit Sprint ${i+1} QA effective days`} type="number" min="0" step="any"
             value={editingQAText} onChange={event => {setEditingQAText(event.target.value);setEditError(null);}}
             style={{width:94,padding:7}} /> : sprintResult.qaEffectiveDays === null ? 'Not recorded' : formatStoryPoints(sprintResult.qaEffectiveDays)}</td>
+          <td title={sprintBalance.description}>{sprintBalance.label}</td>
           <td>{formatStoryPoints(cumulative)} SP</td><td>{expected === null ? 'N/A' : `${formatStoryPoints(expected)} SP`}</td>
             <td className={diff === null ? '' : diff >= 0 ? 'positive' : 'negative'}>{diff === null ? 'N/A' : `${diff > 0 ? '+' : ''}${formatStoryPoints(diff)} SP`}</td>
             <td>{editingSprintIndex === i ? <div style={{display:'flex',gap:6}}>
