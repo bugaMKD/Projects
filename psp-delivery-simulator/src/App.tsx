@@ -7,11 +7,10 @@ import { historicalMock } from './mockData';
 import { getInitialDraftBaselineConfig } from './data/originalReleaseDataset';
 import { DEFAULT_SPRINT_CAPACITY_MEMBERS } from './models/DraftSprintCapacityInput';
 import { INITIAL_NAVIGATION, navigateToManagement, navigateToNewRelease, navigateToSavedRelease, reconcileDeletedRelease, type NavigationState } from './navigation/ReleaseNavigation';
-import { newWorkspaceSession, openWorkspaceSession, editWorkspaceSession, persistWorkspaceDraft, persistWorkspaceBaseline, persistWorkspaceActuals, type WorkspaceSession } from './services/ReleaseWorkspaceOperations';
+import { newWorkspaceSession, openWorkspaceSession, editWorkspaceSession, persistWorkspaceDraft, persistWorkspaceBaseline, persistWorkspaceSprintResults, type WorkspaceSession } from './services/ReleaseWorkspaceOperations';
 import ReleaseWorkspace from './ReleaseWorkspace';
 import { duplicateReleaseToNewSession } from './services/DuplicateRelease';
-import { appendCompletedSprint } from './services/ActualSprintEntry';
-import { validateSprintEditPreview } from './services/EditSprintActuals';
+import { getSprintResults, parseSprintResult, validateSprintResults, type SprintResult } from './models/SprintResult';
 
 /** 5.4.2: the app shell selects one persisted or new release; the simulator owns editable form text. */
 export default function App() {
@@ -121,24 +120,21 @@ export default function App() {
     refresh();
   };
 
-  const recordSprint = (pointsText: string) => {
+  const recordSprint = (pointsText: string, seDaysText: string, qaDaysText: string) => {
     if (!repository || !session) throw new Error('No active release or storage repository.');
-    // The session operation also rejects unsaved drafts and unpersisted releases.
-    const updated = persistWorkspaceActuals(
-      repository,
-      session,
-      new Date().toISOString(),
-      appendCompletedSprint(session.saved.completedSprintPoints, pointsText),
-    );
+    const row = parseSprintResult(pointsText, seDaysText, qaDaysText);
+    const next = [...getSprintResults(session.saved), row];
+    const updated = persistWorkspaceSprintResults(repository, session, new Date().toISOString(), next);
     setSession(updated);
     refresh();
   };
 
-  const saveActualChanges = (preview: readonly number[]) => {
+  const saveActualChanges = (preview: readonly SprintResult[]) => {
     if (!repository || !session) throw new Error('No active release or storage repository.');
-    // 5.4.5c: explicit save only, preserving sprint count and established BL.
-    const validated = validateSprintEditPreview(session.saved.completedSprintPoints, preview);
-    const updated = persistWorkspaceActuals(repository, session, new Date().toISOString(), validated);
+    const saved = getSprintResults(session.saved);
+    if (preview.length !== saved.length) throw new Error('Corrections cannot add or remove completed sprints.');
+    validateSprintResults(preview);
+    const updated = persistWorkspaceSprintResults(repository, session, new Date().toISOString(), preview);
     setSession(updated);
     refresh();
   };

@@ -3,10 +3,13 @@ import {
   createDraftRelease,
   establishRelease,
   replaceReleaseActuals,
+  replaceReleaseSprintResults,
   saveDraftRelease,
+  //type DraftReleaseRecord,
   type ReleaseInputs,
   type ReleaseRecord,
 } from '../models/ReleaseRecord';
+import { getSprintResults, validateSprintResults, type SprintResult } from '../models/SprintResult';
 import type { ReleaseRepository } from '../repositories/ReleaseRepository';
 
 /** A UI workspace contains the release record as loaded/last saved, plus editable draft inputs. */
@@ -98,4 +101,21 @@ export function persistWorkspaceActuals(
   const next = replaceReleaseActuals(session.saved, now, completedSprintPoints);
   repository.saveRelease(next);
   return { ...session, saved: next };
+}
+
+/** 5.4.9: save whole sprint results atomically with existing repository guarantees. */
+export function persistWorkspaceSprintResults(
+  repository: ReleaseRepository, session: WorkspaceSession, now: string,
+  rows: readonly SprintResult[],
+): WorkspaceSession {
+  if (!session.persisted) throw new Error('Save the release before recording actual delivery.');
+  if (hasUnsavedDraftChanges(session)) throw new Error('Save draft changes before recording actual delivery.');
+  validateSprintResults(rows);
+  const previous = getSprintResults(session.saved);
+  if (rows.length !== previous.length && rows.length !== previous.length + 1) {
+    throw new Error('Sprint results may update existing entries or append one completed sprint.');
+  }
+  const next = replaceReleaseSprintResults(session.saved, now, rows);
+  repository.saveRelease(next);
+  return {...session, saved: next};
 }

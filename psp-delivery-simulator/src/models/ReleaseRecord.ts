@@ -2,6 +2,7 @@ import type { DraftBaselineConfig } from './DraftBaselineConfig';
 import type { HistoricalData } from './HistoricalData';
 import type { TeamMember } from './TeamMember';
 import type { EstablishedBaseline } from './EstablishedBaseline';
+import { getSprintResults, validateSprintResults, type SprintResult } from './SprintResult';
 
 /** Version for the serialized release record, not the forecasting algorithm. */
 export const RELEASE_SCHEMA_VERSION = 1 as const;
@@ -20,6 +21,8 @@ export interface ReleaseMetadata {
   updatedAt: string; // ISO-8601 UTC, supplied by caller
   /** Per-sprint incremental completed story points, NOT cumulative. */
   completedSprintPoints: number[];
+  /** Canonical per-sprint results; absent on legacy 5.4.8 saved records. */
+  sprintResults?: SprintResult[];
 }
 
 export interface DraftReleaseRecord extends ReleaseMetadata {
@@ -101,6 +104,7 @@ export function createDraftRelease(
     createdAt: now,
     updatedAt: now,
     completedSprintPoints: [...completedSprintPoints],
+    sprintResults: completedSprintPoints.map(completedStoryPoints => ({ completedStoryPoints, seEffectiveDays: null, qaEffectiveDays: null })),
     baselineStatus: 'draft',
     draft: cloneInputs(inputs),
     establishedBaseline: null,
@@ -119,6 +123,7 @@ export function saveDraftRelease(
     updatedAt: now,
     draft: cloneInputs(committedInputs),
     completedSprintPoints: [...record.completedSprintPoints],
+    sprintResults: getSprintResults(record),
     establishedBaseline: null,
   };
 }
@@ -142,6 +147,7 @@ export function establishRelease(
     ...record,
     updatedAt: now,
     completedSprintPoints: [...record.completedSprintPoints],
+    sprintResults: getSprintResults(record),
     baselineStatus: 'established',
     draft: cloneInputs(record.draft),
     establishedBaseline: freezeSnapshot(structuredClone(baseline)),
@@ -160,5 +166,17 @@ export function replaceReleaseActuals(
     ...record,
     updatedAt: now,
     completedSprintPoints: [...completedSprintPoints],
+    sprintResults: completedSprintPoints.map((completedStoryPoints, i) => ({
+      ...(getSprintResults(record)[i] ?? { seEffectiveDays: null, qaEffectiveDays: null }),
+      completedStoryPoints,
+    })),
   };
+}
+
+/** Single explicit write of SP and actual SE/QA effort; preserves the frozen BL. */
+export function replaceReleaseSprintResults(record: ReleaseRecord, now: string, results: readonly SprintResult[]): ReleaseRecord {
+  validateMetadata(record.id, now);
+  validateSprintResults(results);
+  return { ...record, updatedAt: now, sprintResults: results.map(r => ({ ...r })),
+    completedSprintPoints: results.map(r => r.completedStoryPoints) };
 }
