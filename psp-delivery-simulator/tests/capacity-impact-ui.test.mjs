@@ -6,7 +6,11 @@ const workspace = readFileSync(new URL('../src/ReleaseWorkspace.tsx', import.met
 test('capacity impact is displayed with editable future team capacity', () => {
   assert.match(workspace, /aria-label="Capacity impact and forecast visibility"/);
   assert.ok(workspace.indexOf('aria-label="BL future team capacity"') < workspace.indexOf('aria-label="Capacity impact and forecast visibility"'));
-  assert.ok(workspace.indexOf('aria-label="Capacity impact and forecast visibility"') < workspace.indexOf('aria-label="Baseline establishment"'));
+  const impactPos = workspace.indexOf('aria-label="Capacity impact and forecast visibility"');
+  const statusPos = workspace.indexOf('aria-label="Baseline status messages"');
+  const chartPos = workspace.indexOf('className="panel chart-panel"');
+  assert.ok(impactPos >= 0 && statusPos > impactPos && chartPos > statusPos);
+  assert.doesNotMatch(workspace, /aria-label="Baseline establishment"/);
 });
 test('reuse selected release historical productivity and applied team configuration', () => {
   assert.match(workspace, /summarizeReleaseCapacity\(\s*established\?\.historical \?\? validHistorical,\s*established\?\.sprintMembers \?\? validSprintMembers/);

@@ -1686,3 +1686,190 @@ git add psp-delivery-simulator/src/ReleaseWorkspace.tsx psp-delivery-simulator/t
 git commit -m "feat(ui): show capacity impact and forecast velocity near team inputs"
 ```
 
+# Iteration 5.5.0 — Collapsible configuration panels
+
+Based on the 5.4.11 ReleaseWorkspace.tsx shared in the conversation.
+
+## Changes
+- Release Configuration: collapsible form, expanded for Draft BL and collapsed initially for Established BL.
+- Future SE/QA Capacity: collapsible team-member inputs and Add SE/QA controls.
+- Capacity Impact & Forecast Visibility remains visible, even when team-member inputs are collapsed.
+- Historical Data tab: collapsible historical-reference inputs; the historical statistics remain visible.
+- Baseline Status, release metrics, burn-up chart, and Completed Sprint History remain visible.
+- Uses native HTML `details` / `summary` elements; no changes to data model, persistence, forecasting calculations or baseline behavior.
+- Keeps the strong-red scope line (#dc2626).
+
+## Files
+- Replace `src/ReleaseWorkspace.tsx`
+- Add `tests/workspace-collapsible-panels.test.mjs`
+
+## Validation
+Run from C:\Projects\psp-delivery-simulator:
+```
+npm test
+npm run build
+npm run dev
+```
+Focused new contract tests: 6 passed. Full project tests and TypeScript/Vite build must be run locally.
+
+## Visual scenarios
+1. Draft BL: all three input disclosures start expanded.
+2. Established BL: all three input disclosures start collapsed.
+3. Collapse future team-member inputs; capacity-impact summary remains visible.
+4. Change an input, collapse/expand, and switch tabs; staged values should remain (no implicit save).
+5. Baseline status, burn-up, actual sprint editing/preview and history statistics remain accessible.
+6. Compare frozen BL and saved releases against prior version.
+
+## Suggested commit
+From C:\Projects:
+```
+git add psp-delivery-simulator/src/ReleaseWorkspace.tsx psp-delivery-simulator/tests/workspace-collapsible-panels.test.mjs
+git commit -m "feat(ui): add collapsible release configuration panels"
+```
+
+# 5.5.0 — Corrected full-panel accordions and Save Draft placement
+
+This replaces the previous 5.5.0 patch. Apply on top of the established 5.4.11 workspace; it includes the previous 5.5.0 features and these corrections. No forecasting or persistence model changes.
+
+## Changes
+- **Release Configuration** becomes one clickable panel header with scope and variation summary. All configuration fields are inside the expandable body.
+- **Future SE/QA Capacity** becomes one clickable panel header with realistic velocity and capacity balance summary. The expandable body includes member inputs, capacity-impact metrics, and **Save Draft**.
+- **Historical Productivity**, on Historical Data tab, becomes one clickable header with historical delivered SP summary. Its data-entry fields are inside the body; detailed historical statistics stay below.
+- **Baseline Status** keeps the Establish Baseline action and planning indicators, but no longer contains Save Draft.
+- Save Draft still saves **all release planning inputs**, including historical reference data and future team assumptions; it is not a capacity-only save.
+- Each disclosure uses independent state and accessible native HTML `<details>` / `<summary>`; Draft BL starts expanded and Established BL starts collapsed on mount.
+- The chart, actual sprint history, and baseline status remain visible. Burn-up layout itself is unchanged—side-by-side visibility can be considered separately.
+
+## Apply
+Replace `src/ReleaseWorkspace.tsx` and replace `tests/workspace-collapsible-panels.test.mjs`.
+
+## Validation
+From `C:\Projects\psp-delivery-simulator`:
+```
+npm test
+npm run build
+npm run dev
+```
+New focused contract tests: 6 passed. TSX syntax transpilation completed with no diagnostics. Full Vite and TypeScript project build should be validated in your checkout.
+
+## Visual tests
+1. Draft BL: both Release Planning accordions expand initially. Clicking the entire header collapses to a compact title+summary; click again to expand.
+2. Established BL: accordions start collapsed; manual expand/collapse works.
+3. Historical Data tab: Historical Productivity accordion behaves identically.
+4. Edit capacity, collapse and re-expand: staged text remains and the derived capacity summary updates after the existing blur/Enter commit.
+5. Save Draft appears only in the expanded Future SE/QA Capacity accordion; it saves scope and history as well as capacity.
+6. Establish Baseline stays in BL Status; established BL assumptions and chart lines remain frozen.
+7. Check no duplicate disclosure headings appear and existing sprint editing still works.
+
+## Suggested commit
+```
+cd C:\Projects
+git add psp-delivery-simulator/src/ReleaseWorkspace.tsx psp-delivery-simulator/tests/workspace-collapsible-panels.test.mjs
+git commit -m "fix(ui): make configuration panels true accordions and relocate Save Draft"
+```
+
+# Iteration 5.5.0 — Capacity Impact Summary consolidation
+
+Based on the corrected 5.5.0 accordion workspace.
+
+## Changes
+- Five compact capacity-impact metrics: SE potential throughput, QA potential throughput, forecasted realistic velocity, expected realistic completion, and capacity balance.
+- Move **Establish Baseline** to the right of these five metrics (visible in Draft BL); retain its existing disabled-state safeguards and immutability behavior.
+- Remove the two redundant metric tiles and establish action from the separate BL Status panel. That panel retains the BL state, validation messages, and saved/unsaved status.
+- **Save Draft** stays in the Future SE/QA Capacity accordion and continues to save the entire release draft.
+- No forecasting, stored data, or baseline logic changes; burn-up chart unchanged.
+
+## Included files
+- Replace `src/ReleaseWorkspace.tsx`
+- Replace `tests/bl-capacity-status-ui.test.mjs` (older UI contract expected metrics under BL status)
+- Replace `tests/workspace-collapsible-panels.test.mjs` (updated location of Establish Baseline)
+- Add `tests/capacity-impact-action-layout.test.mjs`
+
+## Validation
+Run from `C:\Projects\psp-delivery-simulator`:
+
+```
+npm test
+npm run build
+npm run dev
+```
+
+15 of 15 focused/new-and-updated UI contract checks passed against the patched source (in a standalone check with the unchanged historical component). Full application typecheck/build and visual behavior still require local validation.
+
+Visual check: Draft BL accordion expanded: five metrics and Establish Baseline button to right, Save Draft still below. Collapse/reopen the panel; no input is lost. Established BL: five frozen metrics shown on expansion, Establish Baseline hidden, actual sprint results unaffected.
+
+Git: commit as a small 5.5.0 UX refinement.
+
+
+# PSP Delivery Simulator — 5.5.0 Capacity Summary Layout Refinement
+
+Apply AFTER the 5.5.0 accordion correction and previous Capacity Summary refinement.
+
+## Changes
+- Capacity impact metrics display in one horizontal row, in this order:
+  1. SE potential throughput
+  2. QA potential throughput
+  3. Forecasted realistic velocity
+  4. Capacity balance
+  5. Expected realistic completion
+- On narrow screens, the metric row scrolls horizontally rather than breaking into several rows.
+- Save Draft and Establish Baseline are in one action row below the capacity summary, aligned left and right.
+- The Establish Baseline action is no longer adjacent to the metric tiles.
+- Existing disabled/eligibility safeguards remain on both actions.
+- The BL Status panel retains its status messages; the forecast engine, data, BL snapshots, chart and sprint editing are unchanged.
+
+## Files
+- Replace `src/ReleaseWorkspace.tsx`
+- Replace `tests/capacity-impact-action-layout.test.mjs` (this test was distributed with the immediately preceding summary tweak)
+
+## Validation
+From `C:\Projects\psp-delivery-simulator` run:
+```
+npm test
+npm run build
+npm run dev
+```
+
+Focused checks: 4/4 pass. Full project tests and build still need local verification.
+
+Check that the five metrics fit side by side at normal desktop width, that the two actions align left/right and retain their proper guards, that Draft BL continues to update its numbers, and that Established BL remains locked. On a narrow viewport, scroll the metrics row horizontally.
+
+## Suggested Git commit
+From `C:\Projects`:
+```
+git add psp-delivery-simulator/src/ReleaseWorkspace.tsx psp-delivery-simulator/tests/capacity-impact-action-layout.test.mjs
+git commit -m "refactor(ui): align capacity metrics and baseline actions"
+```
+
+# 5.5.0 — BL Status panel consolidation
+
+Applies on top of the validated 5.5.0 layout refinement.
+
+## Changes
+- Removes the standalone Baseline Status panel.
+- Moves full save/establish explanation directly below the action buttons in Future SE/QA Capacity.
+- Shows `Unsaved changes` / `All draft changes saved`, validation errors, and `Baseline established · Inputs locked` in the capacity panel **outside its collapsible details**, so they remain visible when the panel is collapsed.
+- Preserves all five Capacity Impact indicators, button safeguards, 5.5.0 accordion behavior, historical tab, red scope line, forecast math and persistence.
+
+## Files
+- Replace `src/ReleaseWorkspace.tsx`
+- Add `tests/baseline-status-consolidation.test.mjs`
+
+## Validate
+Run `npm test`, `npm run build` and `npm run dev` from `C:\Projects\psp-delivery-simulator`.
+Check both Draft and Established BL; verify the status message when capacity details are collapsed, invalid inputs, Save Draft, and Establish Baseline.
+
+
+# 5.5.0 — UI contract compatibility fix (tests only)
+
+Fixes the three failing tests reported after removing the old BL Status panel. No application source or forecasting code changes.
+
+Replace the files in `psp-delivery-simulator/tests/`:
+- `capacity-impact-action-layout.test.mjs`
+- `capacity-impact-ui.test.mjs`
+- `workspace-history-tabs.test.mjs`
+
+The updated assertions use **Baseline status messages** and **Baseline actions**, which still exist, rather than the deleted `Baseline establishment` panel. They also check that the removed panel stays absent.
+
+Verification: 17 targeted tests passed against the previously supplied 5.5.0 BL panel-removal source. Run `npm test` and `npm run build` in your real checkout before committing.
+

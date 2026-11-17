@@ -47,6 +47,11 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
   const savedActuals = session.saved.completedSprintPoints;
   const established = session.saved.establishedBaseline;
   const [workspaceTab, setWorkspaceTab] = useState<'planning' | 'history'>('planning');
+  // Each accordion controls the complete panel, not only the input fields.
+  // Native <details> keeps mounted inputs intact when collapsed.
+  const [releaseConfigOpen, setReleaseConfigOpen] = useState(!established);
+  const [teamCapacityOpen, setTeamCapacityOpen] = useState(!established);
+  const [historicalOpen, setHistoricalOpen] = useState(!established);
   const [actionError, setActionError] = useState<string | null>(null);
   const [sprintPointsText, setSprintPointsText] = useState('');
   const [sprintSEText, setSprintSEText] = useState('');
@@ -248,7 +253,13 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
       </nav>
       <div role="tabpanel" id="release-planning-panel" aria-labelledby="release-planning-tab" hidden={workspaceTab !== 'planning'}>
       <section className="panel" aria-label="BL release configuration" style={{marginBottom:20}}>
-        <div className="section-heading"><div className="eyebrow">{established ? '00 / Established baseline · Locked' : '00 / Draft baseline · Not established'}</div><h2>Release Configuration</h2><p>Edit the scope, then leave the field (or press Enter) to update the three BL forecasts. Variation updates immediately. After establishing the baseline, the inputs become read-only.</p></div>
+        <details open={releaseConfigOpen} onToggle={event => setReleaseConfigOpen(event.currentTarget.open)} aria-label="Release configuration details">
+          <summary style={{cursor:'pointer',padding:'4px 0',listStyle:'disclosure-closed',color:'#172b4d'}}>
+            <span style={{fontWeight:700,fontSize:18}}>Release Configuration</span>
+            <span style={{display:'block',fontSize:12,color:'#64738b',marginTop:4}}>Scope: {formatStoryPoints(displayedRelease.scopeStoryPoints)} SP · Forecast variation: ±{displayedRelease.variationPercent}% · {established ? 'Established BL · Locked' : 'Draft BL'}</span>
+          </summary>
+          <div style={{paddingTop:18}}>
+            <p style={{fontSize:13,color:'#64738b',marginTop:0}}>Edit the scope, then leave the field (or press Enter) to update the three BL forecasts. Variation updates immediately. After establishing the baseline, inputs become read-only.</p>
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(190px, 1fr))',gap:18,alignItems:'start'}}>
           <label style={{display:'grid',gap:7,fontSize:13,fontWeight:600}}>
             Release name
@@ -272,9 +283,17 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
           </label>
         </div>
         <p style={{margin:'14px 0 0',fontSize:12,color:'#64738b'}}>{established ? 'Established BL · Inputs locked and saved in this browser.' : formHasErrors ? 'Invalid form input: the chart retains the last valid draft until all inputs are valid.' : 'Draft BL · Use Save Draft to persist the current inputs.'}</p>
+          </div>
+        </details>
       </section>
       <section className="panel" aria-label="BL future team capacity" style={{marginBottom:20}}>
-        <div className="section-heading"><div className="eyebrow">{established ? 'Future capacity / Established BL' : 'Future capacity / Draft BL · Not established'}</div><h2>Future SE/QA Capacity</h2><p>Configure planned available days <strong>per future sprint</strong> and individual productivity. Leave a field or press Enter to apply changes. These are not historical effective days.</p></div>
+        <details open={teamCapacityOpen} onToggle={event => setTeamCapacityOpen(event.currentTarget.open)} aria-label="Future team capacity details">
+          <summary style={{cursor:'pointer',padding:'4px 0',color:'#172b4d'}}>
+            <span style={{fontWeight:700,fontSize:18}}>Future SE/QA Capacity</span>
+            <span style={{display:'block',fontSize:12,color:'#64738b',marginTop:4}}>{established ? 'Established BL · Locked' : 'Draft BL · Not established'} · Realistic velocity: {formatStoryPoints(currentVelocity)} SP/sprint · {capacityBalance}</span>
+          </summary>
+          <div style={{paddingTop:18}}>
+            <p style={{fontSize:13,color:'#64738b',marginTop:0}}>Configure planned available days <strong>per future sprint</strong> and individual productivity. Leave a field or press Enter to apply changes. These are not historical effective days.</p>
         <div style={{display:'grid',gap:12}}>
           {capacityForm.map((member,index) => {
             const errors = capacityValidation.errors.members[String(index)] ?? {};
@@ -321,10 +340,12 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
             {established ? 'Frozen baseline assumptions. This capacity impact summary is read-only.'
               : 'Values update after valid member inputs are applied (leave the field or press Enter). The release burn-up chart uses the same applied inputs.'}
           </p>
-          <div className="metric-grid" aria-label="Capacity impact metrics">
+          <div className="capacity-impact-five" aria-label="Capacity impact metrics"
+            style={{display:'grid',gridTemplateColumns:'repeat(5, minmax(160px, 1fr))',gap:12,overflowX:'auto',paddingBottom:4}}>
             <Metric title="SE potential throughput" value={`${formatStoryPoints(baselineCapacity.se.potentialStoryPointsPerSprint)} SP/sprint`} detail="Historical SE productivity × planned SE effective days" />
             <Metric title="QA potential throughput" value={`${formatStoryPoints(baselineCapacity.qa.potentialStoryPointsPerSprint)} SP/sprint`} detail="Historical QA productivity × planned QA effective days" />
-            <Metric title="Forecasted realistic velocity" value={`${formatStoryPoints(currentVelocity)} SP/sprint`} detail={`Capacity balance: ${capacityBalance}`} />
+            <Metric title="Forecasted realistic velocity" value={`${formatStoryPoints(currentVelocity)} SP/sprint`} detail="Lower of SE and QA potential throughput" />
+            <Metric title="Capacity balance" value={capacityBalance} detail={established ? 'Frozen BL team balance' : 'Current draft team balance'} />
             <Metric title="Expected realistic completion" value={formatFinish(data.forecastFinishes.realistic)} detail={established ? 'Frozen BL completion forecast' : 'Calculated from applied Draft BL inputs'} />
           </div>
           {!established && <p role="status" style={{fontSize:12,color:'#475569',margin:'12px 0 0'}}>
@@ -335,29 +356,27 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
         <p style={{margin:'14px 0 0',fontSize:12,color:capacityValidation.members===null?'#b42318':'#64738b'}} role={capacityValidation.members===null?'alert':undefined}>
           {established ? 'Future team capacity assumptions locked in the established BL.' : capacityValidation.errors.form ?? (capacityValidation.members===null ? 'Invalid future capacity: the graph keeps the last valid team configuration.' : 'Draft per-sprint capacity · Save Draft to persist · Zero capacity means Not forecastable.')}
         </p>
-      </section>
-      <section className="panel" aria-label="Baseline establishment" style={{marginBottom:20}}>
-        <div className="section-heading"><div className="eyebrow">Baseline status</div><h2>{established ? 'Established BL' : 'Draft BL'}</h2>
-          <p>{established ? 'Baseline inputs and the BL optimistic, realistic and pessimistic lines are locked. Actual delivery remains independent.' : 'Review and apply all release, historical and capacity edits before establishing the baseline.'}</p></div>
-        <div className="metric-grid" aria-label="BL planning capacity" style={{marginBottom:18}}>
-          <Metric title="Realistic capacity" value={`${formatStoryPoints(baselineCapacity.realisticStoryPointsPerSprint)} SP/sprint`} detail={established ? 'Frozen BL capacity' : 'Current draft planning capacity'} />
-          <Metric title="Capacity balance" value={capacityBalance} detail={established ? 'Frozen BL team balance' : 'Current draft team balance'} />
+        {!established && <>
+          <div aria-label="Baseline actions" style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,flexWrap:'wrap',marginTop:16}}>
+            <button type="button" disabled={!eligibility.allowed || actualPreviewDirty || pendingSprintCorrection} onClick={saveDraft}
+              style={{padding:'11px 18px',border:'1px solid #2563eb',borderRadius:8,color:'#2563eb',background:'#fff',fontWeight:700,cursor:eligibility.allowed?'pointer':'not-allowed'}}>
+              Save Draft
+            </button>
+            <button type="button" disabled={!eligibility.allowed || actualPreviewDirty || pendingSprintCorrection} onClick={establish}
+              style={{padding:'11px 18px',border:0,borderRadius:8,background:eligibility.allowed?'#2563eb':'#94a3b8',color:'white',fontWeight:700,cursor:eligibility.allowed?'pointer':'not-allowed'}}>
+              Establish Baseline
+            </button>
+          </div>
+          <p style={{fontSize:12,color:'#64738b',margin:'8px 0 0'}}>Save Draft is manual. Establish Baseline automatically saves the immutable snapshot. Saved releases can be reopened from Release Management.</p>
+        </>}
+          </div>
+        </details>
+        <div aria-label="Baseline status messages" style={{marginTop:12}}>
+          {!established && <p role="status" style={{fontSize:13,color:dirty?'#9a6700':'#166534',margin:'4px 0'}}>{dirty ? 'Unsaved changes' : 'All draft changes saved'}</p>}
+          {actionError && <p role="alert" style={{fontSize:13,color:'#b42318',margin:'4px 0'}}>{actionError}</p>}
+          {!established && !eligibility.allowed && <p role="alert" style={{fontSize:13,color:'#b42318',margin:'4px 0'}}>{eligibility.reason}</p>}
+          {established && <strong role="status" style={{fontSize:13,color:'#166534'}}>Baseline established · Inputs locked</strong>}
         </div>
-        {!established && <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
-          <button type="button" disabled={!eligibility.allowed || actualPreviewDirty || pendingSprintCorrection} onClick={saveDraft}
-            style={{padding:'11px 18px',border:'1px solid #2563eb',borderRadius:8,color:'#2563eb',background:'#fff',fontWeight:700,cursor:eligibility.allowed?'pointer':'not-allowed'}}>
-            Save Draft
-          </button>
-          <button type="button" disabled={!eligibility.allowed || actualPreviewDirty || pendingSprintCorrection} onClick={establish}
-          style={{padding:'11px 18px',border:0,borderRadius:8,background:eligibility.allowed?'#2563eb':'#94a3b8',color:'white',fontWeight:700,cursor:eligibility.allowed?'pointer':'not-allowed'}}>
-          Establish Baseline
-          </button>
-        </div>}
-        {!established && <p role="status" style={{fontSize:13,color:dirty?'#9a6700':'#166534'}}>{dirty ? 'Unsaved changes' : 'All draft changes saved'}</p>}
-        {actionError && <p role="alert" style={{color:'#b42318'}}>{actionError}</p>}
-        {established && <strong role="status" style={{color:'#166534'}}>Baseline established · Inputs locked</strong>}
-        {!established && !eligibility.allowed && <p role="alert" style={{color:'#b42318',fontSize:13}}>{eligibility.reason}</p>}
-        <p style={{fontSize:12,color:'#64738b',marginTop:12}}>Save Draft is manual. Establish Baseline automatically saves the immutable snapshot. Saved releases can be reopened from Release Management.</p>
       </section>
       <section className="metric-grid" aria-label="Release metrics">
         <Metric title="Release scope" value={`${formatStoryPoints(displayedRelease.scopeStoryPoints)} SP`} detail={established ? "Established BL scope" : "Editable draft scope"} />
@@ -373,7 +392,7 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
           <Tooltip contentStyle={{borderRadius:12,border:'1px solid #e0e6ef'}} />
           <Legend verticalAlign="bottom" height={32} wrapperStyle={{paddingTop:10,fontSize:12}} />
           <ReferenceLine x={count === 0 ? 'Start' : `S${count}`} stroke="#acb9cc" strokeDasharray="3 4" label={{value:'Now',fill:'#64738b',fontSize:12,position:'top'}}/>
-          <Line name="Release scope" type="linear" dataKey="scope" stroke="#dc2626" strokeWidth={2} dot={false} isAnimationActive={false}/>
+          <Line name="Release scope" type="linear" dataKey="scope" stroke="#dc2626" strokeWidth={2} strokeDasharray="6 5" dot={false} isAnimationActive={false}/>
           <Line name="BL Optimistic" type="linear" dataKey="optimistic" stroke="#19986f" strokeWidth={2.5} dot={false} isAnimationActive={false}/>
           <Line name="BL Realistic" type="linear" dataKey="realistic" stroke="#3778e6" strokeWidth={2.5} dot={false} isAnimationActive={false}/>
           <Line name="BL Pessimistic" type="linear" dataKey="pessimistic" stroke="#d79b34" strokeWidth={2.5} dot={false} isAnimationActive={false}/>
@@ -468,7 +487,13 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
       <div role="tabpanel" id="historical-data-panel" aria-labelledby="historical-data-tab" hidden={workspaceTab !== 'history'}>
         <div className="page-intro"><div><div className="eyebrow">Historical reference / Selected release</div><h2>Historical Data — {displayedRelease.releaseName}</h2><p>The historical assumptions belong to this release. They are frozen when its baseline is established, and never shared or overwritten by another release.</p></div></div>
       <section className="panel" aria-label="BL historical productivity" style={{marginBottom:20}}>
-        <div className="section-heading"><div className="eyebrow">{established ? 'Historical inputs / Established BL' : 'Historical inputs / Draft BL · Not established'}</div><h2>Historical Productivity</h2><p>Enter the historical totals (not averages per sprint). Leave a field or press Enter to apply the changes to all three Draft BL forecasts. Future capacity is configured separately below.</p></div>
+        <details open={historicalOpen} onToggle={event => setHistoricalOpen(event.currentTarget.open)} aria-label="Historical productivity details">
+          <summary style={{cursor:'pointer',padding:'4px 0',color:'#172b4d'}}>
+            <span style={{fontWeight:700,fontSize:18}}>Historical Productivity</span>
+            <span style={{display:'block',fontSize:12,color:'#64738b',marginTop:4}}>{established ? 'Established BL · Locked' : 'Draft BL · Not established'} · Historical delivered: {formatStoryPoints(baselineCapacity.historicalDeliveredStoryPoints)} SP</span>
+          </summary>
+          <div style={{paddingTop:18}}>
+            <p style={{fontSize:13,color:'#64738b',marginTop:0}}>Enter historical totals (not averages per sprint). Leave a field or press Enter to apply changes to the Draft BL forecasts.</p>
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(190px, 1fr))',gap:18,alignItems:'start'}}>
           {([
             {key:'deliveredStoryPointsText' as const, label:'Historical delivered SP'},
@@ -486,10 +511,12 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
           </label>)}
         </div>
         <p style={{margin:'14px 0 0',fontSize:12,color:'#64738b'}}>{established ? 'Historical assumptions locked in the established BL.' : historicalValidation.historical === null ? 'Invalid historical inputs: the chart retains the last valid historical values.' : 'Draft historical values · Applied on field exit or Enter · Save Draft to persist.'}</p>
+          </div>
+        </details>
       </section>
       <ReleaseHistoricalCapacityView historical={established?.historical ?? validHistorical} sprintMembers={established?.sprintMembers ?? validSprintMembers} established={!!established} mode="historical"/>
       </div>
-      <footer>PSP Delivery Simulator · Iteration 5.4.8 · Release-specific historical data</footer>
+      <footer>PSP Delivery Simulator · Iteration 5.5.0 · Release-specific historical data</footer>
     </main>
   </div>;
 }
