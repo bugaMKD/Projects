@@ -13,6 +13,7 @@ import { createDraftSprintCapacityForm, parseDraftSprintCapacityForm } from './m
 import { addDraftSprintMember, commitDraftSprintCapacityForm, removeDraftSprintMember } from './models/DraftSprintCapacityCommit';
 import { ReleaseHistoricalCapacityView } from './components/ReleaseHistoricalCapacityView';
 import { summarizeReleaseCapacity } from './services/releaseCapacitySummary';
+import { calculateCapacityBalanceInsight, formatCapacityGapPercent, formatCapacityShortfall } from './services/capacityBalanceInsight';
 import { calculateSprintCapacityBalance } from './services/sprintCapacityBalance';
 import { establishBaseline, type EstablishedBaseline } from './models/EstablishedBaseline';
 import { buildEstablishedBaselineDataset } from './services/establishedBaselineDataset';
@@ -96,10 +97,15 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
     established?.historical ?? validHistorical,
     established?.sprintMembers ?? validSprintMembers,
   ), [established, validHistorical, validSprintMembers]);
-  const capacityBalance = baselineCapacity.limitingRole === 'SE' ? 'SE limiting'
-    : baselineCapacity.limitingRole === 'QA' ? 'QA limiting'
-    : baselineCapacity.limitingRole === 'Unavailable' ? 'Not available'
-    : baselineCapacity.realisticStoryPointsPerSprint === 0 ? 'No delivery capacity' : 'Balanced';
+  // Presentation only: 5% tolerance does NOT alter SE/QA-constrained delivery forecasts.
+  const capacityInsight = calculateCapacityBalanceInsight({
+    sePotentialStoryPointsPerSprint: baselineCapacity.se.potentialStoryPointsPerSprint,
+    qaPotentialStoryPointsPerSprint: baselineCapacity.qa.potentialStoryPointsPerSprint,
+    historicalDeliveredStoryPoints: (established?.historical ?? validHistorical).deliveredStoryPoints,
+    historicalSeEffectiveDays: (established?.historical ?? validHistorical).seEffectiveDays,
+    historicalQaEffectiveDays: (established?.historical ?? validHistorical).qaEffectiveDays,
+  });
+  const capacityBalance = capacityInsight.label;
   // Comparison isolates future-team changes; historical productivity stays constant.
   // The validated chart dataset remains the source for forecasted completion.
   const referenceCapacity = useMemo(() => summarizeReleaseCapacity(
@@ -387,7 +393,11 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
           </p>
           <div className="capacity-impact-five" aria-label="Capacity impact metrics"
             style={{display:'grid',gridTemplateColumns:'repeat(5, minmax(160px, 1fr))',gap:12,overflowX:'auto',paddingBottom:4}}>
-            <div title={capacityBalance === "Balanced" ? "Balanced SE and QA capacity" : "Capacity bottleneck"} style={{borderLeft:capacityBalance === "Balanced" ? "3px solid #16a34a" : "3px solid #d97706",borderRadius:9,background:capacityBalance === "Balanced" ? "#f0fdf4" : "#fffbeb"}}><Metric title="Capacity balance" value={capacityBalance} detail={established ? 'Frozen BL team balance' : 'Current draft team balance'} /></div>
+            <div aria-label="Capacity balance insight" title={capacityInsight.severity === 'balanced' ? 'Within 5% capacity tolerance' : 'Capacity difference by potential SP throughput'}
+            style={{borderLeft:capacityInsight.severity === 'balanced' ? '3px solid #16a34a' : capacityInsight.severity === 'moderate' ? '3px solid #d97706' : capacityInsight.severity === 'high' ? '3px solid #b40909' : '3px solid #94a3b8', borderRadius:9, background:capacityInsight.severity === 'balanced' ? '#f0fdf4' : capacityInsight.severity === 'moderate' ? '#fffbeb' : capacityInsight.severity === 'high' ? '#fff7ed' : '#f8fafc'}}>
+            <Metric title="Capacity balance" value={capacityBalance} detail={formatCapacityGapPercent(capacityInsight.gapPercent)} />
+            <div style={{fontSize:12,color:'#64738b',padding:'0 12px 12px',lineHeight:1.4}}>{formatCapacityShortfall(capacityInsight)}</div>
+          </div>
               <Metric title="SE potential throughput" value={`${formatStoryPoints(baselineCapacity.se.potentialStoryPointsPerSprint)} SP/sprint`} detail="Historical SE productivity × planned SE effective days" />
             <Metric title="QA potential throughput" value={`${formatStoryPoints(baselineCapacity.qa.potentialStoryPointsPerSprint)} SP/sprint`} detail="Historical QA productivity × planned QA effective days" />
             <Metric title="Forecasted realistic velocity" value={`${formatStoryPoints(currentVelocity)} SP/sprint`} detail="Lower of SE and QA potential throughput" />
