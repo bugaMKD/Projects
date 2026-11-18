@@ -40,7 +40,8 @@ test('established BL freezes displayed capacity and hides draft delta', () => {
   assert.match(workspace, /\{!established && <p role="status"/);
 });
 test('labels equal positive capacity as balanced and zero as no delivery capacity', () => {
-  assert.match(workspace, /realisticStoryPointsPerSprint === 0 \? 'No delivery capacity' : 'Balanced'/);
+  assert.match(workspace, /calculateCapacityBalanceInsight\(\{/);
+  assert.match(workspace, /const capacityBalance = capacityInsight\.label/);
 });
 test('capacity editing uses explicit row apply/cancel with validation', () => {
   const source = readPspSource(resolvePspPath(process.cwd(), 'src/ReleaseWorkspace.tsx'),'utf8');

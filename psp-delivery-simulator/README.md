@@ -2046,3 +2046,76 @@ The script safely rewrites the two named tests in `tests/baseline-status-consoli
 After testing, review and commit only intended changes. Do not stage `.bak` files.
 
 
+# PSP Delivery Simulator — Iteration 5.6.2 Capacity Balance Insight
+
+**Apply on top of validated Iteration 5.6.1 in your new feature branch.**
+
+## New display-only metrics
+- Up to **5%** difference between SE and QA *potential SP throughput*: `Balanced` (green subtle border).
+- More than 5% and up to 15%: `SE limiting` or `QA limiting` (amber).
+- More than 15%: same limiting role, stronger amber warning.
+- Shows the **actual gap percentage** even for `Balanced` (e.g., 2% gap).
+- Shows **additional effective SE/QA days per sprint** needed to eliminate the shortfall, using the limiting role's historical productivity in SP per effective day.
+- Zero/missing capacity is handled explicitly without claiming a balanced plan or fabricating a shortfall.
+- Preserves Capacity Balance as the FIRST of the five metric bubbles.
+
+**Important:** The 5% tolerance is for **the label and visual indicator only**. The forecast remains limited by the lower real SP throughput, exactly as before. Established baseline and Save Draft / Establish Baseline are unchanged. The solid red scope line is untouched.
+
+## Copy files into your application
+From this ZIP:
+- `tools/apply-5.6.2.mjs` -> `C:\Projects\psp-delivery-simulator\tools\`
+- `tools/capacityBalanceInsight.ts` -> SAME `tools` folder (the updater installs this under `src/services`)
+- `tests/capacity-balance-insight.test.mjs` -> your `tests` folder
+- `tests/capacity-balance-ui.test.mjs` -> your `tests` folder
+
+The updater uses safety checks and creates `src/ReleaseWorkspace.tsx.before-5.6.2.bak` before changing the source. Do **not** run it a second time after success.
+
+## Run from app root
+```
+node tools/apply-5.6.2.mjs
+node --experimental-strip-types --test tests/capacity-balance-insight.test.mjs tests/capacity-balance-ui.test.mjs
+npm test
+npm run build
+npm run dev
+```
+
+Node 26 supports running the pure TypeScript helper test; `--experimental-strip-types` is included for compatibility with Node 22 used in preparation.
+
+## Visual checks
+1. SE=100 SP, QA=99 SP shows `Balanced`, `1% gap`, and the small effective QA days shortfall.
+2. At 8% difference, see `QA limiting` or `SE limiting`, `8% gap`, and role-specific additional effective days.
+3. At >15%, a stronger warning, with the actual gap still visible.
+4. Change ADS/PROD using the checkmark: the metric and the chart update from the same applied team data.
+5. Established BL remains locked; the displayed diagnosis uses established BL capacity, not unsaved changes.
+6. No changed dashed/solid styling: the release scope should remain a SOLID red line.
+
+## Verification carried out during packaging
+- 8 pure helper checks passed.
+- 3 focused source-contract checks passed against a representative 5.6.1 fixture.
+- The transformed fixture passed TSX syntax transpilation.
+- Complete build and all project tests require your actual local PSP checkout.
+
+If the updater reports a 5.6.1 structure mismatch, stop and share that error (don't manually force edits).
+
+
+# PSP Iteration 5.6.2 — Legacy test compatibility fix
+
+The two failing tests check inline classification expressions removed in 5.6.2. Role classification and zero-capacity behavior are now implemented in `src/services/capacityBalanceInsight.ts` and verified by `tests/capacity-balance-insight.test.mjs`.
+
+1. Copy `tools/fix-5.6.2-legacy-tests.mjs` into your existing `tools` folder.
+2. From `C:\Projects\psp-delivery-simulator` run `node tools/fix-5.6.2-legacy-tests.mjs`.
+3. Run `npm test` and `npm run build`.
+
+This updates exactly one old assertion in each of `tests/bl-capacity-status-ui.test.mjs` and `tests/capacity-impact-ui.test.mjs`, retaining the rest of both files. The new assertions verify the UI uses the 5.6.2 insight. No runtime code changes. Backup `.bak` test files are created; ensure they are excluded from Git.
+
+# PSP 5.6.2 legacy test fix — revision 2
+
+The previous script aborted when the BL test contained two obsolete `baselineCapacity.limitingRole` assertions. This version replaces all matching obsolete assertions with two integration checks of the 5.6.2 helper and label. It validates both target files before any modifications, creates `.bak` backups and does not change application code.
+
+1. Copy `tools/fix-5.6.2-legacy-tests-v2.mjs` into `C:\Projects\psp-delivery-simulator\tools`.
+2. From `C:\Projects\psp-delivery-simulator` run `node tools/fix-5.6.2-legacy-tests-v2.mjs`.
+3. Run `node --test tests/bl-capacity-status-ui.test.mjs tests/capacity-impact-ui.test.mjs`, then `npm test` and `npm run build`.
+
+If the updater says `Already updated` but tests fail, please send the contents of the relevant test file, rather than trying more replacements.
+
+

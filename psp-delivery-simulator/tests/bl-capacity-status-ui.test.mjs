@@ -16,8 +16,8 @@ test('realistic velocity appears in capacity impact, before release metrics', ()
 test('capacity balance appears in capacity impact and respects role-specific wording', () => {
   assert.match(impact, /title="Capacity balance" value=\{capacityBalance\}/);
   assert.doesNotMatch(status, /title="Capacity balance"/);
-  assert.match(workspace, /baselineCapacity\.limitingRole === 'SE' \? 'SE limiting'/);
-  assert.match(workspace, /baselineCapacity\.limitingRole === 'QA' \? 'QA limiting'/);
+  assert.match(workspace, /calculateCapacityBalanceInsight\(\{/);
+  assert.match(workspace, /const capacityBalance = capacityInsight\.label/);
 });
 
 test('5.4.7 status uses live valid draft inputs or frozen established inputs', () => {
