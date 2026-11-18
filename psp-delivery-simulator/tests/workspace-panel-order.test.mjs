@@ -1,3 +1,6 @@
+import assertPsp from 'node:assert/strict';
+import { readFileSync as readPspSource } from 'node:fs';
+import { resolve as resolvePspPath } from 'node:path';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -9,15 +12,16 @@ const position = (text) => {
   return index;
 };
 
-test('5.4.6 burn-up is immediately followed by actual sprint history', () => {
-  const chart = position('<section className="panel chart-panel">');
-  const sprint = position('<section className="panel sprint-panel">');
-  const allocation = position('<div className="lower-grid">');
-  assert.ok(chart < sprint && sprint < allocation);
-  const between = workspace.slice(chart, sprint);
-  assert.ok(between.includes('title="Release burn-up"'));
-  assert.ok(!between.includes('<section className="panel sprint-panel">'));
-  assert.ok(!between.includes('<div className="lower-grid">'));
+test('5.6.0 capacity-and-chart comparison precedes metrics and sprint history', () => {
+  const source = readPspSource(resolvePspPath(process.cwd(), 'src/ReleaseWorkspace.tsx'),'utf8');
+  const markers=['className="psp-planning-compare"','aria-label="BL future team capacity"','className="panel chart-panel psp-chart-pane"','aria-label="Capacity impact summary"','className="panel sprint-panel"'];
+  let previous=-1;
+  for(const marker of markers) {
+    const index=source.indexOf(marker);
+    assertPsp.ok(index>previous, 'Missing or out-of-order: '+marker);
+    previous=index;
+  }
+  assertPsp.match(source,/gridTemplateColumns:'minmax\(0, 2fr\) minmax\(0, 3fr\)'/);
 });
 
 test('5.4.6 PSP allocation and BL outlook remain side-by-side after actuals', () => {

@@ -50,7 +50,8 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
   // Each accordion controls the complete panel, not only the input fields.
   // Native <details> keeps mounted inputs intact when collapsed.
   const [releaseConfigOpen, setReleaseConfigOpen] = useState(!established);
-  const [teamCapacityOpen, setTeamCapacityOpen] = useState(!established);
+  const [editingCapacityMemberId, setEditingCapacityMemberId] = useState<string | null>(null);
+  const [capacityRowError, setCapacityRowError] = useState<string | null>(null);
   const [historicalOpen, setHistoricalOpen] = useState(!established);
   const [actionError, setActionError] = useState<string | null>(null);
   const [sprintPointsText, setSprintPointsText] = useState('');
@@ -286,55 +287,99 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
           </div>
         </details>
       </section>
-      <section className="panel" aria-label="BL future team capacity" style={{marginBottom:20}}>
-        <details open={teamCapacityOpen} onToggle={event => setTeamCapacityOpen(event.currentTarget.open)} aria-label="Future team capacity details">
-          <summary style={{cursor:'pointer',padding:'4px 0',color:'#172b4d'}}>
+      <style>{'@media (max-width: 900px) { .psp-planning-compare { grid-template-columns: minmax(0, 1fr) !important; } } .psp-planning-compare > * { min-width:0; } .psp-planning-compare .psp-chart-pane .chart-wrap { min-height:350px; }'}</style>
+      <style>{`
+  .psp-combined-planning .psp-planning-compare { align-items: stretch; }
+  .psp-combined-planning .psp-planning-compare > .panel {
+    min-width: 0; min-height: 440px; height: 100%; box-sizing: border-box;
+    border: 0; box-shadow: none; background: transparent; padding: 0; margin: 0 !important;
+    display: flex; flex-direction: column;
+  }
+  .psp-combined-planning .psp-capacity-pane .psp-capacity-body { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  .psp-combined-planning .psp-capacity-pane [role="table"] { max-height: 365px; overflow-y: auto !important; overflow-x: auto; }
+  .psp-combined-planning .psp-chart-pane .chart-wrap { flex: 1 1 auto; min-height: 365px; }
+  @media (max-width: 900px) {
+    .psp-combined-planning .psp-planning-compare > .panel { min-height: 0; height: auto; }
+    .psp-combined-planning .psp-chart-pane .chart-wrap { min-height: 365px; }
+  }
+`}</style>
+      <section className="panel psp-combined-planning" aria-label="Interactive release planning" style={{marginBottom:20}}>
+      <div className="psp-planning-compare" style={{display:'grid',gridTemplateColumns:'minmax(0, 2fr) minmax(0, 3fr)',gap:16,alignItems:'stretch',marginBottom:0}}>
+      <section className="panel psp-capacity-pane" aria-label="BL future team capacity" style={{marginBottom:20}}>
+        <div className="psp-capacity-body">
+          <div className="psp-capacity-heading" style={{color:'#172b4d',marginBottom:12}}>
             <span style={{fontWeight:700,fontSize:18}}>Future SE/QA Capacity</span>
             <span style={{display:'block',fontSize:12,color:'#64738b',marginTop:4}}>{established ? 'Established BL · Locked' : 'Draft BL · Not established'} · Realistic velocity: {formatStoryPoints(currentVelocity)} SP/sprint · {capacityBalance}</span>
-          </summary>
+          </div>
           <div style={{paddingTop:18}}>
             <p style={{fontSize:13,color:'#64738b',marginTop:0}}>Configure planned available days <strong>per future sprint</strong> and individual productivity. Leave a field or press Enter to apply changes. These are not historical effective days.</p>
         <div style={{display:'grid',gap:12}}>
+          <p style={{fontSize:11,color:'#64738b',margin:'0 0 8px'}}>ADS = Available days / sprint · PROD = Productivity (%) · SE = Software Engineer · QA = Quality Assurance</p>
+        <div role="table" aria-label="Future team capacity table" style={{overflowX:'auto',width:'100%'}}>
+          <div role="row" style={{display:'grid',gridTemplateColumns:'minmax(94px,1fr) 38px 49px 52px 65px',minWidth:326,gap:5,padding:'6px 4px',fontSize:11,fontWeight:700,color:'#64738b'}}>
+            <span role="columnheader">Name</span><span role="columnheader">Role</span><span role="columnheader">ADS</span><span role="columnheader">PROD</span><span role="columnheader">Actions</span>
+          </div>
           {capacityForm.map((member,index) => {
             const errors = capacityValidation.errors.members[String(index)] ?? {};
-            const fieldStyle = {padding:'10px 12px',border:'1px solid #cbd5e1',borderRadius:8,font:'inherit',width:'100%',boxSizing:'border-box' as const};
-            return <div key={member.id} style={{border:'1px solid #e2e8f0',borderRadius:10,padding:12}}>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))',gap:12,alignItems:'start'}}>
-                <label style={{display:'grid',gap:6,fontSize:13,fontWeight:600}}>Member name
-                  <input disabled={!!established} aria-label={`Member name ${index+1}`} type="text" value={member.name} onChange={e => updateCapacityMember(member.id,'name',e.target.value)} onBlur={() => commitCapacity()}
-                    onKeyDown={e => {if(e.key==='Enter')e.currentTarget.blur();}} aria-invalid={!!errors.name} style={fieldStyle}/>
-                  {errors.name && <small role="alert" style={{color:'#b42318'}}>{errors.name}</small>}
-                </label>
-                <label style={{display:'grid',gap:6,fontSize:13,fontWeight:600}}>Role
-                  <select disabled={!!established} aria-label={`Role ${index+1}`} value={member.role} onChange={e => {
-                    const next = capacityForm.map(m => m.id === member.id ? {...m,role:e.target.value as 'SE'|'QA'} : m);
-                    setCapacityForm(next); commitCapacity(next);
-                  }} style={fieldStyle}>
-                    <option value="SE">SE</option><option value="QA">QA</option>
-                  </select>
-                </label>
-                <label style={{display:'grid',gap:6,fontSize:13,fontWeight:600}}>Available days / sprint
-                  <input disabled={!!established} aria-label={`Available days per sprint ${index+1}`} type="number" min="0" step="any" value={member.availableDaysText}
-                    onChange={e=>updateCapacityMember(member.id,'availableDaysText',e.target.value)} onBlur={() => commitCapacity()}
-                    onKeyDown={e => {if(e.key==='Enter')e.currentTarget.blur();}} aria-invalid={!!errors.availableDaysText} style={fieldStyle}/>
-                  {errors.availableDaysText && <small role="alert" style={{color:'#b42318'}}>{errors.availableDaysText}</small>}
-                </label>
-                <label style={{display:'grid',gap:6,fontSize:13,fontWeight:600}}>Productivity (%)
-                  <input disabled={!!established} aria-label={`Productivity percent ${index+1}`} type="number" min="0" max="100" step="any" value={member.productivityPercentText}
-                    onChange={e=>updateCapacityMember(member.id,'productivityPercentText',e.target.value)} onBlur={() => commitCapacity()}
-                    onKeyDown={e => {if(e.key==='Enter')e.currentTarget.blur();}} aria-invalid={!!errors.productivityPercentText} style={fieldStyle}/>
-                  {errors.productivityPercentText && <small role="alert" style={{color:'#b42318'}}>{errors.productivityPercentText}</small>}
-                </label>
-                <button disabled={!!established} type="button" onClick={() => removeCapacityMember(member.id)} style={{alignSelf:'center',padding:'9px 12px',border:'1px solid #cbd5e1',borderRadius:8,background:'#fff',cursor:'pointer'}}>Remove</button>
-              </div>
+            const editing = editingCapacityMemberId === member.id && !established;
+            const compact: React.CSSProperties = {width:'100%',minWidth:0,boxSizing:'border-box',padding:'5px 3px',border:'1px solid #cbd5e1',borderRadius:5,font:'inherit',fontSize:12};
+            return <div role="row" key={member.id} style={{display:'grid',gridTemplateColumns:'minmax(94px,1fr) 38px 49px 52px 65px',minWidth:326,gap:5,alignItems:'center',padding:'6px 4px',borderTop:'1px solid #e2e8f0'}}>
+              <div role="cell" style={{minWidth:0}}>{editing ? <input type="text" aria-label={'Member name '+(index+1)} maxLength={20} value={member.name} style={compact} onChange={e=>updateCapacityMember(member.id,'name',e.target.value.slice(0,20))}/> : <span title={member.name} style={{display:'block',fontSize:12,whiteSpace:'nowrap',textOverflow:'ellipsis',overflow:'hidden'}}>{member.name}</span>}</div>
+              <div role="cell">{editing ? <select aria-label={'Role '+(index+1)} value={member.role} style={{...compact,padding:'5px 0'}} onChange={e=>setCapacityForm(current=>current.map(m=>m.id===member.id?{...m,role:e.target.value as 'SE'|'QA'}:m))}><option value="SE">SE</option><option value="QA">QA</option></select> : <span style={{fontSize:12}}>{member.role}</span>}</div>
+              <div role="cell">{editing ? <input type="number" min="0" step="any" aria-label={'Available days per sprint '+(index+1)} aria-invalid={!!errors.availableDaysText} value={member.availableDaysText} style={compact} onChange={e=>updateCapacityMember(member.id,'availableDaysText',e.target.value)}/> : <span style={{fontSize:12}}>{member.availableDaysText}</span>}</div>
+              <div role="cell">{editing ? <input type="number" min="0" max="100" step="any" aria-label={'Productivity percent '+(index+1)} aria-invalid={!!errors.productivityPercentText} value={member.productivityPercentText} style={compact} onChange={e=>updateCapacityMember(member.id,'productivityPercentText',e.target.value)}/> : <span style={{fontSize:12}}>{member.productivityPercentText}%</span>}</div>
+              <div role="cell" style={{display:'flex',gap:3,justifyContent:'flex-end'}}>{editing ? <>
+                <button type="button" title="Apply row" aria-label={'Apply changes for '+member.name} style={{padding:'3px 5px',border:'1px solid #cbd5e1',borderRadius:5,background:'#ecfdf5',cursor:'pointer'}} onClick={()=>{
+                  const result = commitDraftSprintCapacityForm(capacityForm,validSprintMembers);
+                  if(!member.name.trim() || member.name.length>20) {setCapacityRowError('Name must have 1–20 characters.');return;}
+                  if(result.applied) {setValidSprintMembers(result.members);setEditingCapacityMemberId(null);setCapacityRowError(null);}
+                  else setCapacityRowError('Correct invalid values before applying.');
+                }}>✓</button>
+                <button type="button" title="Cancel edit" aria-label={'Cancel edits for '+member.name} style={{padding:'3px 5px',border:'1px solid #cbd5e1',borderRadius:5,background:'#fff',cursor:'pointer'}} onClick={()=>{setCapacityForm(createDraftSprintCapacityForm(validSprintMembers));setEditingCapacityMemberId(null);setCapacityRowError(null);}}>✕</button>
+              </> : <>
+                <button type="button" disabled={!!established} title="Edit member" aria-label={'Edit '+member.name} style={{padding:'3px 5px',border:'1px solid #cbd5e1',borderRadius:5,background:'#fff',cursor:'pointer'}} onClick={()=>{setEditingCapacityMemberId(member.id);setCapacityRowError(null);}}>✎</button>
+                <button type="button" disabled={!!established} title="Remove member" aria-label={'Remove '+member.name} style={{padding:'3px 5px',border:'1px solid #cbd5e1',borderRadius:5,background:'#fff',cursor:'pointer'}} onClick={()=>{if(window.confirm('Remove '+member.name+' from future capacity?'))removeCapacityMember(member.id);}}>🗑</button>
+              </>}</div>
+              {editing && (capacityRowError || Object.values(errors).some(Boolean)) && <div role="alert" style={{gridColumn:'1/-1',fontSize:11,color:'#b42318'}}>{capacityRowError ?? Object.values(errors).filter(Boolean).join(' · ')}</div>}
             </div>;
           })}
         </div>
-        <div style={{display:'flex',gap:10,marginTop:12,flexWrap:'wrap'}}>
-          <button disabled={!!established} type="button" onClick={() => addCapacityMember('SE')} style={{padding:'9px 14px',borderRadius:8,border:'1px solid #cbd5e1',background:'#f8fafc',cursor:'pointer'}}>+ Add SE</button>
-          <button disabled={!!established} type="button" onClick={() => addCapacityMember('QA')} style={{padding:'9px 14px',borderRadius:8,border:'1px solid #cbd5e1',background:'#f8fafc',cursor:'pointer'}}>+ Add QA</button>
         </div>
-        <div aria-label="Capacity impact and forecast visibility" style={{marginTop:18,padding:16,border:'1px solid #dbe4ef',borderRadius:12,background:'#f8fafc'}}>
+        <div style={{display:'flex',gap:10,marginTop:12,flexWrap:'wrap'}}>
+          <button disabled={!!established} type="button" onClick={() => {if(editingCapacityMemberId===null) addCapacityMember('SE');}} style={{padding:'9px 14px',borderRadius:8,border:'1px solid #cbd5e1',background:'#f8fafc',cursor:'pointer'}}>+ Add SE</button>
+          <button disabled={!!established} type="button" onClick={() => {if(editingCapacityMemberId===null) addCapacityMember('QA');}} style={{padding:'9px 14px',borderRadius:8,border:'1px solid #cbd5e1',background:'#f8fafc',cursor:'pointer'}}>+ Add QA</button>
+        </div>
+        
+        <p style={{margin:'14px 0 0',fontSize:12,color:capacityValidation.members===null?'#b42318':'#64738b'}} role={capacityValidation.members===null?'alert':undefined}>
+          {established ? 'Future team capacity assumptions locked in the established BL.' : capacityValidation.errors.form ?? (capacityValidation.members===null ? 'Invalid future capacity: the graph keeps the last valid team configuration.' : 'Draft per-sprint capacity · Save Draft to persist · Zero capacity means Not forecastable.')}
+        </p>
+        {!established && <>
+          
+          
+        </>}
+          </div>
+        </div>
+        
+      </section>
+      <section className="panel chart-panel psp-chart-pane"><SectionHeading eyebrow={established ? '01 / Established BL vs reality' : '01 / Draft BL vs reality'} title="Release burn-up" description="All three BL lines begin at Start. After establishment the BL lines are fixed; actual delivery remains separate." />
+        <div className="chart-wrap"><ResponsiveContainer width="100%" height="100%"><LineChart data={data.chartData} margin={{top:16,right:16,bottom:12,left:0}}>
+          <CartesianGrid stroke="#e8edf4" strokeDasharray="3 5" vertical={false}/>
+          <XAxis dataKey="sprint" tickLine={false} axisLine={false} tick={{fill:'#64738b',fontSize:12}} dy={10}/>
+          <YAxis tickLine={false} axisLine={false} tick={{fill:'#64738b',fontSize:12}} width={42} domain={[0, Math.ceil(Math.max(displayedRelease.scopeStoryPoints, data.completed, 1) / 40) * 40]}/>
+          <Tooltip contentStyle={{borderRadius:12,border:'1px solid #e0e6ef'}} />
+          <Legend verticalAlign="bottom" height={32} wrapperStyle={{paddingTop:10,fontSize:12}} />
+          <ReferenceLine x={count === 0 ? 'Start' : `S${count}`} stroke="#acb9cc" strokeDasharray="3 4" label={{value:'Now',fill:'#64738b',fontSize:12,position:'top'}}/>
+          <Line name="Release scope" type="linear" dataKey="scope" stroke="#dc2626" strokeWidth={2} dot={false} isAnimationActive={false}/>
+          <Line name="BL Optimistic" type="linear" dataKey="optimistic" stroke="#19986f" strokeWidth={2.5} dot={false} isAnimationActive={false}/>
+          <Line name="BL Realistic" type="linear" dataKey="realistic" stroke="#3778e6" strokeWidth={2.5} dot={false} isAnimationActive={false}/>
+          <Line name="BL Pessimistic" type="linear" dataKey="pessimistic" stroke="#d79b34" strokeWidth={2.5} dot={false} isAnimationActive={false}/>
+          <Line name="Actual delivered" type="linear" dataKey="actual" stroke="#15213b" strokeWidth={3.5} dot={{r:3.5,fill:'#15213b',strokeWidth:1}} connectNulls={false} isAnimationActive={false}/>
+        </LineChart></ResponsiveContainer></div>
+        <div className="chart-note"><span className="info-circle">i</span> The three BL forecasts come from historical productivity and future per-sprint SE/QA capacity. Established BL lines never change with actuals.</div>
+      </section>
+      </div>
+      </section>
+      <section className="panel" aria-label="Capacity impact summary" style={{marginBottom:20}}><div aria-label="Capacity impact and forecast visibility" style={{marginTop:18,padding:16,border:'1px solid #dbe4ef',borderRadius:12,background:'#f8fafc'}}>
           <div style={{fontWeight:700,fontSize:15,marginBottom:5}}>Capacity impact · Forecast visibility</div>
           <p style={{fontSize:12,color:'#64738b',margin:'0 0 14px'}}>
             {established ? 'Frozen baseline assumptions. This capacity impact summary is read-only.'
@@ -342,22 +387,18 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
           </p>
           <div className="capacity-impact-five" aria-label="Capacity impact metrics"
             style={{display:'grid',gridTemplateColumns:'repeat(5, minmax(160px, 1fr))',gap:12,overflowX:'auto',paddingBottom:4}}>
-            <Metric title="SE potential throughput" value={`${formatStoryPoints(baselineCapacity.se.potentialStoryPointsPerSprint)} SP/sprint`} detail="Historical SE productivity × planned SE effective days" />
+            <div title={capacityBalance === "Balanced" ? "Balanced SE and QA capacity" : "Capacity bottleneck"} style={{borderLeft:capacityBalance === "Balanced" ? "3px solid #16a34a" : "3px solid #d97706",borderRadius:9,background:capacityBalance === "Balanced" ? "#f0fdf4" : "#fffbeb"}}><Metric title="Capacity balance" value={capacityBalance} detail={established ? 'Frozen BL team balance' : 'Current draft team balance'} /></div>
+              <Metric title="SE potential throughput" value={`${formatStoryPoints(baselineCapacity.se.potentialStoryPointsPerSprint)} SP/sprint`} detail="Historical SE productivity × planned SE effective days" />
             <Metric title="QA potential throughput" value={`${formatStoryPoints(baselineCapacity.qa.potentialStoryPointsPerSprint)} SP/sprint`} detail="Historical QA productivity × planned QA effective days" />
             <Metric title="Forecasted realistic velocity" value={`${formatStoryPoints(currentVelocity)} SP/sprint`} detail="Lower of SE and QA potential throughput" />
-            <Metric title="Capacity balance" value={capacityBalance} detail={established ? 'Frozen BL team balance' : 'Current draft team balance'} />
+            
             <Metric title="Expected realistic completion" value={formatFinish(data.forecastFinishes.realistic)} detail={established ? 'Frozen BL completion forecast' : 'Calculated from applied Draft BL inputs'} />
           </div>
           {!established && <p role="status" style={{fontSize:12,color:'#475569',margin:'12px 0 0'}}>
             <strong>Capacity impact vs saved team setup:</strong> {velocityDeltaLabel}.
             {capacityValidation.members === null ? ' Pending capacity inputs are invalid; the chart and metrics still show the last valid configuration.' : ' This isolates changes in future team capacity, keeping historical productivity constant.'}
           </p>}
-        </div>
-        <p style={{margin:'14px 0 0',fontSize:12,color:capacityValidation.members===null?'#b42318':'#64738b'}} role={capacityValidation.members===null?'alert':undefined}>
-          {established ? 'Future team capacity assumptions locked in the established BL.' : capacityValidation.errors.form ?? (capacityValidation.members===null ? 'Invalid future capacity: the graph keeps the last valid team configuration.' : 'Draft per-sprint capacity · Save Draft to persist · Zero capacity means Not forecastable.')}
-        </p>
-        {!established && <>
-          <div aria-label="Baseline actions" style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,flexWrap:'wrap',marginTop:16}}>
+        </div>{!established && <><div aria-label="Baseline actions" style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,flexWrap:'wrap',marginTop:16}}>
             <button type="button" disabled={!eligibility.allowed || actualPreviewDirty || pendingSprintCorrection} onClick={saveDraft}
               style={{padding:'11px 18px',border:'1px solid #2563eb',borderRadius:8,color:'#2563eb',background:'#fff',fontWeight:700,cursor:eligibility.allowed?'pointer':'not-allowed'}}>
               Save Draft
@@ -366,40 +407,19 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
               style={{padding:'11px 18px',border:0,borderRadius:8,background:eligibility.allowed?'#2563eb':'#94a3b8',color:'white',fontWeight:700,cursor:eligibility.allowed?'pointer':'not-allowed'}}>
               Establish Baseline
             </button>
-          </div>
-          <p style={{fontSize:12,color:'#64738b',margin:'8px 0 0'}}>Save Draft is manual. Establish Baseline automatically saves the immutable snapshot. Saved releases can be reopened from Release Management.</p>
-        </>}
-          </div>
-        </details>
-        <div aria-label="Baseline status messages" style={{marginTop:12}}>
+          </div><p style={{fontSize:12,color:'#64738b',margin:'8px 0 0'}}>Save Draft is manual. Establish Baseline automatically saves the immutable snapshot. Saved releases can be reopened from Release Management.</p></>}<div aria-label="Baseline status messages" style={{marginTop:12}}>
           {!established && <p role="status" style={{fontSize:13,color:dirty?'#9a6700':'#166534',margin:'4px 0'}}>{dirty ? 'Unsaved changes' : 'All draft changes saved'}</p>}
           {actionError && <p role="alert" style={{fontSize:13,color:'#b42318',margin:'4px 0'}}>{actionError}</p>}
           {!established && !eligibility.allowed && <p role="alert" style={{fontSize:13,color:'#b42318',margin:'4px 0'}}>{eligibility.reason}</p>}
           {established && <strong role="status" style={{fontSize:13,color:'#166534'}}>Baseline established · Inputs locked</strong>}
-        </div>
-      </section>
+        </div></section>
       <section className="metric-grid" aria-label="Release metrics">
         <Metric title="Release scope" value={`${formatStoryPoints(displayedRelease.scopeStoryPoints)} SP`} detail={established ? "Established BL scope" : "Editable draft scope"} />
         <Metric title="Actual delivered" value={`${data.completed} SP`} detail={`${Math.round(100*data.completed/displayedRelease.scopeStoryPoints)}% of release scope`} />
         <Metric title="Remaining backlog" value={`${data.remaining} SP`} detail="Scope minus delivered" />
         <Metric title="Against realistic plan" value={realGap === null ? 'N/A' : `${realGap > 0 ? '+' : ''}${formatStoryPoints(realGap)} SP`} detail={realGap === null ? 'BL forecast unavailable' : realGap >= 0 ? 'Ahead of BL' : 'Behind BL'} />
       </section>
-      <section className="panel chart-panel"><SectionHeading eyebrow={established ? '01 / Established BL vs reality' : '01 / Draft BL vs reality'} title="Release burn-up" description="All three BL lines begin at Start. After establishment the BL lines are fixed; actual delivery remains separate." />
-        <div className="chart-wrap"><ResponsiveContainer width="100%" height="100%"><LineChart data={data.chartData} margin={{top:16,right:16,bottom:12,left:0}}>
-          <CartesianGrid stroke="#e8edf4" strokeDasharray="3 5" vertical={false}/>
-          <XAxis dataKey="sprint" tickLine={false} axisLine={false} tick={{fill:'#64738b',fontSize:12}} dy={10}/>
-          <YAxis tickLine={false} axisLine={false} tick={{fill:'#64738b',fontSize:12}} width={42} domain={[0, Math.ceil(Math.max(displayedRelease.scopeStoryPoints, data.completed, 1) / 40) * 40]}/>
-          <Tooltip contentStyle={{borderRadius:12,border:'1px solid #e0e6ef'}} />
-          <Legend verticalAlign="bottom" height={32} wrapperStyle={{paddingTop:10,fontSize:12}} />
-          <ReferenceLine x={count === 0 ? 'Start' : `S${count}`} stroke="#acb9cc" strokeDasharray="3 4" label={{value:'Now',fill:'#64738b',fontSize:12,position:'top'}}/>
-          <Line name="Release scope" type="linear" dataKey="scope" stroke="#dc2626" strokeWidth={2} strokeDasharray="6 5" dot={false} isAnimationActive={false}/>
-          <Line name="BL Optimistic" type="linear" dataKey="optimistic" stroke="#19986f" strokeWidth={2.5} dot={false} isAnimationActive={false}/>
-          <Line name="BL Realistic" type="linear" dataKey="realistic" stroke="#3778e6" strokeWidth={2.5} dot={false} isAnimationActive={false}/>
-          <Line name="BL Pessimistic" type="linear" dataKey="pessimistic" stroke="#d79b34" strokeWidth={2.5} dot={false} isAnimationActive={false}/>
-          <Line name="Actual delivered" type="linear" dataKey="actual" stroke="#15213b" strokeWidth={3.5} dot={{r:3.5,fill:'#15213b',strokeWidth:1}} connectNulls={false} isAnimationActive={false}/>
-        </LineChart></ResponsiveContainer></div>
-        <div className="chart-note"><span className="info-circle">i</span> The three BL forecasts come from historical productivity and future per-sprint SE/QA capacity. Established BL lines never change with actuals.</div>
-      </section>
+      
       <section className="panel sprint-panel"><SectionHeading eyebrow="02 / Actual delivery" title="Completed sprint history" description="Record completed SP and actual SE/QA effective days for each sprint. Actuals never change the established BL."/>
         <div style={{display:'flex',alignItems:'end',gap:12,flexWrap:'wrap',marginBottom:16}}>
           <label style={{display:'grid',gap:6,fontSize:13,fontWeight:600}}>

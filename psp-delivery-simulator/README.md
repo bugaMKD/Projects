@@ -1873,3 +1873,176 @@ The updated assertions use **Baseline status messages** and **Baseline actions**
 
 Verification: 17 targeted tests passed against the previously supplied 5.5.0 BL panel-removal source. Run `npm test` and `npm run build` in your real checkout before committing.
 
+
+# PSP Delivery Simulator — Iteration 5.6.0
+
+## Why this patch uses a targeted updater
+The currently accessible ReleaseWorkspace.tsx in the conversation is an older revision, not the validated 5.5.0 file in your local Git checkout. To avoid overwriting the working application with an outdated file, this ZIP includes a **Node updater** that modifies the exact `src/ReleaseWorkspace.tsx` present in your local checkout. It fails without changing the source if key 5.5.0 markers are missing.
+
+## Apply (from PowerShell)
+
+1. Create a new feature branch from `main`:
+   ```powershell
+   cd C:\Projects
+   git switch main
+   git switch -c feature/interactive-capacity-5.6.0
+   cd psp-delivery-simulator
+   ```
+2. Copy `tools/apply-5.6.0.mjs` from the ZIP to `psp-delivery-simulator/tools/` (create the folder if necessary).
+3. Copy `tests/interactive-capacity-layout.test.mjs` to `psp-delivery-simulator/tests/`.
+4. Run:
+   ```powershell
+   node tools/apply-5.6.0.mjs
+   node --test tests/interactive-capacity-layout.test.mjs
+   npm test
+   npm run build
+   npm run dev
+   ```
+5. Review the diff before committing:
+   ```powershell
+   cd C:\Projects
+   git diff -- psp-delivery-simulator/src/ReleaseWorkspace.tsx
+   ```
+
+The updater creates `src/ReleaseWorkspace.before-5.6.0.tsx.bak`; this is a local backup and should **not** be committed. The script stops if that backup already exists or the patch was already applied.
+
+## Functionality
+- Side-by-side team configuration (**40%**) and Recharts burn-up (**60%**); stacked below 900px.
+- Compact member table with an abbreviation legend: ADS (Available days/sprint) and PROD (Productivity %).
+- Member name in compact column, maximum 20 chars when editing.
+- Pencil edit, checkmark apply, X cancel, and trash removal with confirmation.
+- Row apply previews validated capacity; the existing Save Draft button still persists the release.
+- Five metric tiles remain in one full-width row below the split. **Capacity Balance is first** and has subtle green (balanced) or amber (limiting) left-edge styling.
+- Existing `Save Draft` / `Establish Baseline` buttons and status messages are moved with the metric summary, below the two-column layout.
+- Baseline formulas, persistence, completed sprint actuals and Established BL calculation path are not intentionally modified.
+
+## Validation caveat
+Four new focused contract tests passed on a reconstructed syntax-valid fixture. Because the actual current 5.5.0 repository source and full test suite are not mounted in this session, your local `npm test`, TypeScript build, and browser check are required. Older tests that hardcode panel ordering may need their layout assertions updated, without changing the underlying forecasting expectations.
+
+## Manual scenarios
+- New Draft: capacity rows and chart are side by side; adjust ADS/PROD and click ✓; burn-up updates.
+- Cancel: X reverts member changes and does not change the forecast.
+- Delete: trash asks for confirmation; capacity impacts recalculate when confirmed.
+- Add SE/QA: new member appears and can be edited with pencil.
+- Save Draft, reopen: applied capacity remains saved.
+- Establish Baseline: capacity inputs locked; original BL curves remain fixed as actual sprints are recorded.
+- Resize browser below 900px: panels stack vertically.
+
+# PSP Delivery Simulator — Iteration 5.6.0 updater fix
+
+This is a correction to the **5.6.0 targeted updater**, not a new iteration.
+
+## Why the previous script stopped
+
+The original script expected `aria-label="Baseline actions"` to be nested inside the `Capacity impact and forecast visibility` div. In the validated 5.5.0 JSX the actions are in a separate sibling div. The previous updater threw before writing to `src/ReleaseWorkspace.tsx`.
+
+## Apply from PowerShell
+
+1. Replace only `tools/apply-5.6.0.mjs` with the script from this ZIP. The `tests/interactive-capacity-layout.test.mjs` in this archive is unchanged from the previous 5.6.0 package.
+2. From `C:\Projects\psp-delivery-simulator`, run:
+
+```
+node tools/apply-5.6.0.mjs
+node --test tests/interactive-capacity-layout.test.mjs
+npm test
+npm run build
+npm run dev
+```
+
+The updater preserves the existing `Save Draft` and `Establish Baseline` button markup and moves them separately into the new `Capacity impact summary` section. It also moves their explanatory text and status messages.
+
+If `src/ReleaseWorkspace.before-5.6.0.tsx.bak` already exists, inspect it first: a previous updater may have completed. Don't delete or overwrite that backup automatically.
+
+## Validation
+
+- 4/4 focused source contract checks passed on a reconstructed 5.5.0-compatible JSX fixture.
+- Compatibility checks and counts of baseline actions verified.
+- Actual local app TypeScript build, full tests and browser behavior **not** verified here because your full 5.5.0 checkout is not mounted.
+
+Do not commit the `.tsx.bak` file.
+
+
+# PSP 5.6.0 — Contract test migration
+
+The 5.6.0 UX change invalidated nine source-string assertions across six test files. The updater changes **only tests**, not `ReleaseWorkspace.tsx`, the forecasting logic, or persistence.
+
+From `C:\Projects\psp-delivery-simulator` after copying `tools/update-5.6.0-contract-tests.mjs`:
+
+```powershell
+node tools/update-5.6.0-contract-tests.mjs
+npm test
+npm run build
+npm run dev
+```
+
+The updater verifies the 5.6.0 markers and verifies all nine expected old tests exist before it writes anything. It creates backups beside each changed test file (`.before-5.6.0.mjs.bak`). If an expectation is absent or the files have already changed, it aborts instead of guessing.
+
+## Updated expectations
+- 5-metric sequence starts with Capacity balance.
+- Burn-up has `panel chart-panel psp-chart-pane` and sits beside Team Capacity.
+- Metric summary and Save Draft / Establish Baseline live below the two-column layout, not inside the accordion.
+- Capacity editing uses explicit row Apply / Cancel instead of blur/Enter.
+- BL Status panel remains removed; draft/established state still appears in the relocated status message.
+- Actual sprint history follows the comparison and impact summary, not immediately after burn-up.
+
+## Important
+This updates **source-level UI contract tests** only. It does not validate user interactions. Confirm that applying ADS / PROD changes updates forecast and chart, cancel restores the old member, remove confirms, and established BL cannot be edited.
+
+# PSP Delivery Simulator — Iteration 5.6.1: Shared interactive planning panel
+
+This is a small visual/layout update **on top of the working 5.6.0 version**. It does not replace your workspace from an older revision.
+
+## What changes
+- Future SE/QA Capacity no longer has its own accordion. It remains visible when the Release Planning tab is open.
+- Team Capacity and Release Burn-up appear inside **one shared panel**, arranged 40% / 60% on desktop.
+- Their two areas are stretched to equal height; when many members are listed, the capacity table scrolls internally (max-height 365 px) rather than pushing the chart far down.
+- On narrow screens, both sections stack vertically; equal-height behavior is disabled there.
+- The five Capacity Impact metrics, manual Save Draft, Establish Baseline, historical tab, and all forecasting/BL logic remain unchanged.
+
+## Install (from C:\Projects\psp-delivery-simulator)
+
+1. Create a new feature branch from the current validated working branch.
+2. Copy `tools/apply-5.6.1.mjs` from this ZIP into your project's `tools` folder.
+3. Copy `tests/shared-planning-panel.test.mjs` from the ZIP into `tests`.
+4. Run:
+
+```powershell
+node tools/apply-5.6.1.mjs
+node --test tests/shared-planning-panel.test.mjs
+npm test
+npm run build
+npm run dev
+```
+
+The updater makes `src/ReleaseWorkspace.before-5.6.1.tsx.bak` before overwriting your current workspace. It also updates the single known obsolete capacity-accordion contract assertion in `tests/workspace-collapsible-panels.test.mjs` if present, backing up that test first. It leaves the other tests alone.
+
+## Visual acceptance checks
+- Both Team Capacity and Release Burn-up sit inside one shared bordered card on a desktop width.
+- The left section remains ~40% and right section ~60%, with equal card height.
+- Table stays visible; no chevron or collapse control for Team Capacity.
+- With 10+ people, table content scrolls without hiding the chart.
+- Clicking pencil, editing ADS or PROD, and applying still updates the chart. Cancel restores the previously applied value.
+- Baseline establishment disables capacity edits as before.
+- On mobile/narrow widths, the sections stack and show the full chart.
+
+## Scope
+Layout and test compatibility only. No calculation, persistent record, baseline, or historical model changes.
+
+
+# PSP Iteration 5.6.1 — two stale contract tests
+
+The two failures are from outdated assumptions about the removed Future Capacity accordion. This is a **test-only** correction; no application source or forecasting logic changes.
+
+Copy `tools/fix-5.6.1-tests.mjs` into the project's `tools/` directory and run from the PSP project root:
+
+```powershell
+node tools/fix-5.6.1-tests.mjs
+npm test
+npm run build
+```
+
+The script safely rewrites the two named tests in `tests/baseline-status-consolidation.test.mjs` and `tests/workspace-collapsible-panels.test.mjs`. It backs both files up and stops without changes if the expected 5.6.1 markers or named tests are missing.
+
+After testing, review and commit only intended changes. Do not stage `.bak` files.
+
+

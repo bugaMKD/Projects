@@ -1,3 +1,6 @@
+import assertPsp from 'node:assert/strict';
+import { readFileSync as readPspSource } from 'node:fs';
+import { resolve as resolvePspPath } from 'node:path';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -10,13 +13,19 @@ const impact = s.slice(impactStart, impactEnd);
 const metrics = ['SE potential throughput', 'QA potential throughput', 'Forecasted realistic velocity', 'Capacity balance', 'Expected realistic completion'];
 
 test('five capacity-impact tiles are in the required order', () => {
-  let last = -1;
-  for (const metric of metrics) {
-    const index = impact.indexOf(`title="${metric}"`);
-    assert.ok(index > last, `Expected ${metric} after preceding metric`);
-    last = index;
+  const source = readPspSource(resolvePspPath(process.cwd(), 'src/ReleaseWorkspace.tsx'),'utf8');
+  const start = source.indexOf('aria-label="Capacity impact metrics"');
+  const end = source.indexOf('aria-label="Baseline actions"',start);
+  assertPsp.ok(start>=0 && end>start, 'Full-width impact summary must precede baseline actions');
+  const metrics = source.slice(start,end);
+  const ordered = ['Capacity balance','SE potential throughput','QA potential throughput','Forecasted realistic velocity','Expected realistic completion'];
+  let previous=-1;
+  for(const name of ordered) {
+    const index=metrics.indexOf('title="'+name+'"');
+    assertPsp.ok(index>previous, 'Missing or out of order: '+name);
+    previous=index;
   }
-  assert.equal((impact.match(/<Metric title=/g) ?? []).length, 5);
+  assertPsp.equal((metrics.match(/<Metric title=/g)||[]).length,5);
 });
 
 test('five tiles occupy a single grid row with horizontal overflow on narrow screens', () => {

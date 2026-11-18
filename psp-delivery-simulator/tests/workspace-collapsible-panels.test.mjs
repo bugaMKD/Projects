@@ -1,3 +1,6 @@
+import assertPsp from 'node:assert/strict';
+import { readFileSync as readPspSource } from 'node:fs';
+import { resolve as resolvePspPath } from 'node:path';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -12,15 +15,15 @@ const panelBody = (label) => {
   return s.slice(begin, end);
 };
 
-test('three complete panel accordions with independently managed state', () => {
+test('only release configuration and historical productivity are collapsible', () => {
+  const s = readFileSync(new URL('../src/ReleaseWorkspace.tsx', import.meta.url), 'utf8');
   assert.match(s, /const \[releaseConfigOpen, setReleaseConfigOpen\] = useState\(!established\)/);
-  assert.match(s, /const \[teamCapacityOpen, setTeamCapacityOpen\] = useState\(!established\)/);
   assert.match(s, /const \[historicalOpen, setHistoricalOpen\] = useState\(!established\)/);
-  assert.match(s, /open=\{releaseConfigOpen\} onToggle=\{event => setReleaseConfigOpen\(event.currentTarget.open\)\}/);
-  assert.match(s, /open=\{teamCapacityOpen\} onToggle=\{event => setTeamCapacityOpen\(event.currentTarget.open\)\}/);
-  assert.match(s, /open=\{historicalOpen\} onToggle=\{event => setHistoricalOpen\(event.currentTarget.open\)\}/);
-  assert.equal((s.match(/<details open=/g) ?? []).length, 3);
-  assert.equal((s.match(/<\/details>/g) ?? []).length, 3);
+  assert.match(s, /open=\{releaseConfigOpen\}/);
+  assert.match(s, /open=\{historicalOpen\}/);
+  assert.doesNotMatch(s, /teamCapacityOpen|aria-label="Future team capacity details"/);
+  assert.match(s, /className="panel psp-combined-planning"/);
+  assert.match(s, /aria-label="Future team capacity table"/);
 });
 
 test('release configuration header includes scope and full set of inputs', () => {
@@ -31,24 +34,27 @@ test('release configuration header includes scope and full set of inputs', () =>
   assert.match(body, /Release name/);
 });
 
-test('future capacity accordion includes inputs and impact summary', () => {
-  const body=panelBody('Future team capacity details');
-  assert.match(body, /<summary[^>]*>[\s\S]*Future SE\/QA Capacity/);
-  assert.match(body, /capacityForm\.map/);
-  assert.match(body, /\+ Add SE/);
-  assert.match(body, /Capacity impact and forecast visibility/);
-  assert.match(body, /Expected realistic completion/);
+test('team capacity is always visible in shared planning card', () => {
+  const source = readPspSource(resolvePspPath(process.cwd(), 'src/ReleaseWorkspace.tsx'),'utf8');
+  assertPsp.match(source,/className="panel psp-combined-planning"/);
+  assertPsp.match(source,/aria-label="Future team capacity table"/);
+  assertPsp.match(source,/capacityForm\.map/);
+  assertPsp.match(source,/className="panel chart-panel psp-chart-pane"/);
+  assertPsp.doesNotMatch(source,/aria-label="Future team capacity details"/);
+  assertPsp.ok(source.indexOf('aria-label="Capacity impact and forecast visibility"')>source.indexOf('className="panel chart-panel psp-chart-pane"'));
 });
 
-test('Save Draft is inside future capacity, and is removed from BL Status', () => {
-  assert.equal((s.match(/onClick=\{saveDraft\}/g) ?? []).length, 1);
-  assert.match(panelBody('Future team capacity details'), /onClick=\{saveDraft\}/);
-  const baselineStart=s.indexOf('aria-label="Baseline establishment"');
-  const baselineEnd=s.indexOf('</section>', baselineStart);
-  const baseline=s.slice(baselineStart,baselineEnd);
-  assert.doesNotMatch(baseline,/onClick=\{saveDraft\}/);
-  assert.doesNotMatch(baseline,/onClick=\{establish\}/);
-  assert.match(panelBody('Future team capacity details'), /onClick=\{establish\}/);
+test('Save Draft and Establish Baseline are together in full-width impact summary', () => {
+  const source = readPspSource(resolvePspPath(process.cwd(), 'src/ReleaseWorkspace.tsx'),'utf8');
+  const start=source.indexOf('aria-label="Baseline actions"');
+  const status=source.indexOf('aria-label="Baseline status messages"',start);
+  assertPsp.ok(start>=0 && status>start, 'Baseline actions must be in summary');
+  const actions=source.slice(start,status);
+  assertPsp.match(actions,/onClick=\{saveDraft\}/);
+  assertPsp.match(actions,/onClick=\{establish\}/);
+  assertPsp.equal((source.match(/onClick=\{saveDraft\}/g)||[]).length,1);
+  assertPsp.equal((source.match(/onClick=\{establish\}/g)||[]).length,1);
+  assertPsp.doesNotMatch(source,/aria-label="Baseline establishment"/);
 });
 
 test('historical data has its own complete accordion', () => {
@@ -58,10 +64,13 @@ test('historical data has its own complete accordion', () => {
   assert.match(s, /mode="historical"/);
 });
 
-test('baseline, burn-up chart, and sprint history remain outside accordions', () => {
-  const last=s.lastIndexOf('</details>');
-  assert.ok(s.indexOf('aria-label="Baseline establishment"') < s.indexOf('aria-label="Historical productivity details"'));
-  assert.ok(s.indexOf('className="panel chart-panel"') > s.indexOf('aria-label="Baseline establishment"'));
-  assert.match(s,/className="panel sprint-panel"/);
-  assert.match(s,/stroke="#dc2626"/);
+test('burn-up, capacity summary and sprint history remain visible outside accordions', () => {
+  const source = readPspSource(resolvePspPath(process.cwd(), 'src/ReleaseWorkspace.tsx'),'utf8');
+  const chart=source.indexOf('className="panel chart-panel psp-chart-pane"');
+  const summary=source.indexOf('aria-label="Capacity impact summary"');
+  const sprint=source.indexOf('className="panel sprint-panel"');
+  assertPsp.ok(chart>=0 && summary>chart && sprint>summary);
+  assertPsp.match(source,/stroke="#dc2626"/);
+  assertPsp.match(source,/psp-planning-compare/);
 });
+

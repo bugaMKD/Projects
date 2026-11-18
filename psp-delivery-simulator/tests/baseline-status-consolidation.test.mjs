@@ -1,3 +1,6 @@
+import assertPsp from 'node:assert/strict';
+import { readFileSync as readPspSource } from 'node:fs';
+import { resolve as resolvePspPath } from 'node:path';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -25,18 +28,27 @@ test('manual save and immutable BL explanation follow the actions', () => {
   assert.match(capacity, /Saved releases can be reopened from Release Management\./);
 });
 
-test('draft, established, and error status survive independent of collapsed inputs', () => {
-  const collapsedAt = capacity.indexOf('</details>');
-  const statusesAt = capacity.indexOf('aria-label="Baseline status messages"');
-  assert.ok(collapsedAt !== -1 && statusesAt > collapsedAt);
-  for (const term of ['All draft changes saved','Unsaved changes','Baseline established · Inputs locked', 'actionError', 'eligibility.reason']) {
-    assert.ok(capacity.indexOf(term, statusesAt) > statusesAt, `Missing: ${term}`);
+test('baseline status remains outside capacity inputs in shared planning layout', () => {
+  const s = readFileSync(new URL('../src/ReleaseWorkspace.tsx', import.meta.url), 'utf8');
+  const shared = s.indexOf('className="panel psp-combined-planning"');
+  const capacity = s.indexOf('aria-label="Future team capacity table"', shared);
+  const chart = s.indexOf('className="panel chart-panel psp-chart-pane"', capacity);
+  const actions = s.indexOf('aria-label="Baseline actions"', chart);
+  const status = s.indexOf('aria-label="Baseline status messages"', actions);
+  assert.ok(shared >= 0 && capacity > shared && chart > capacity && actions > chart && status > actions);
+  assert.doesNotMatch(s, /aria-label="Future team capacity details"/);
+  for (const marker of ['All draft changes saved', 'Unsaved changes', 'Baseline established · Inputs locked', 'actionError', 'eligibility.reason']) {
+    assert.ok(s.indexOf(marker, status) > status, 'Missing baseline status: ' + marker);
   }
 });
 
 test('five metrics, scope line, chart and sprint history stay intact', () => {
-  for (const term of ['SE potential throughput','QA potential throughput','Forecasted realistic velocity','Capacity balance','Expected realistic completion']) assert.ok(source.includes(term));
-  assert.match(source, /stroke="#dc2626"/);
-  assert.match(source, /className="panel chart-panel"/);
-  assert.match(source, /className="panel sprint-panel"/);
+  const source = readPspSource(resolvePspPath(process.cwd(), 'src/ReleaseWorkspace.tsx'),'utf8');
+  for (const title of ['Capacity balance','SE potential throughput','QA potential throughput','Forecasted realistic velocity','Expected realistic completion']) {
+    assertPsp.ok(source.includes('title="'+title+'"'), 'Missing '+title);
+  }
+  assertPsp.match(source, /stroke="#dc2626"/);
+  assertPsp.match(source, /className="panel chart-panel psp-chart-pane"/);
+  assertPsp.match(source, /className="panel sprint-panel"/);
 });
+
