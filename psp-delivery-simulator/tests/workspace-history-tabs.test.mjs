@@ -1,3 +1,6 @@
+import assertPsp from 'node:assert/strict';
+import { readFileSync as readPspSource } from 'node:fs';
+import { resolve as resolvePspPath } from 'node:path';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -14,15 +17,18 @@ test('5.4.8 release planning is default, with accessible in-workspace tabs', () 
   assert.match(workspace, /role="tabpanel" id="historical-data-panel"/);
 });
 test('release planning retains baseline actions and monitoring after BL Status removal', () => {
-  assert.ok(pos('id="release-planning-panel"') < pos('aria-label="BL future team capacity"'));
-  assert.ok(pos('aria-label="BL future team capacity"') < pos('aria-label="Baseline actions"'));
-  assert.ok(pos('aria-label="Baseline actions"') < pos('aria-label="Baseline status messages"'));
-  assert.ok(pos('aria-label="Baseline status messages"') < pos('<section className="panel chart-panel">'));
-  assert.doesNotMatch(workspace, /aria-label="Baseline establishment"/);
-  assert.ok(pos('<section className="panel chart-panel">') < pos('<section className="panel sprint-panel">'));
-  assert.ok(pos('<section className="panel sprint-panel">') < pos('<div className="lower-grid">'));
-  assert.ok(pos('mode="future"') < pos('id="historical-data-panel"'));
+  const source = readPspSource(resolvePspPath(process.cwd(), 'src/ReleaseWorkspace.tsx'),'utf8');
+  const markers=['aria-label="BL future team capacity"','className="panel chart-panel psp-chart-pane"','aria-label="Capacity impact summary"','aria-label="Baseline actions"','aria-label="Baseline status messages"','className="panel sprint-panel"'];
+  let previous=-1;
+  for(const marker of markers) {
+    const index=source.indexOf(marker);
+    assertPsp.ok(index>previous, 'Missing or out-of-order: '+marker);
+    previous=index;
+  }
+  assertPsp.match(source,/id="historical-data-panel"/);
+  assertPsp.doesNotMatch(source,/aria-label="Baseline establishment"/);
 });
+
 test('5.4.8 historical form and stats are in historical tab only', () => {
   assert.ok(pos('id="historical-data-panel"') < pos('aria-label="BL historical productivity"'));
   assert.ok(pos('aria-label="BL historical productivity"') < pos('mode="historical"'));

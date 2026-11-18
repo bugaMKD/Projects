@@ -1,17 +1,23 @@
+import assertPsp from 'node:assert/strict';
+import { readFileSync as readPspSource } from 'node:fs';
+import { resolve as resolvePspPath } from 'node:path';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const workspace = readFileSync(new URL('../src/ReleaseWorkspace.tsx', import.meta.url), 'utf8');
 
 test('capacity impact is displayed with editable future team capacity', () => {
-  assert.match(workspace, /aria-label="Capacity impact and forecast visibility"/);
-  assert.ok(workspace.indexOf('aria-label="BL future team capacity"') < workspace.indexOf('aria-label="Capacity impact and forecast visibility"'));
-  const impactPos = workspace.indexOf('aria-label="Capacity impact and forecast visibility"');
-  const statusPos = workspace.indexOf('aria-label="Baseline status messages"');
-  const chartPos = workspace.indexOf('className="panel chart-panel"');
-  assert.ok(impactPos >= 0 && statusPos > impactPos && chartPos > statusPos);
-  assert.doesNotMatch(workspace, /aria-label="Baseline establishment"/);
+  const source = readPspSource(resolvePspPath(process.cwd(), 'src/ReleaseWorkspace.tsx'),'utf8');
+  const team=source.indexOf('aria-label="BL future team capacity"');
+  const chart=source.indexOf('className="panel chart-panel psp-chart-pane"');
+  const impact=source.indexOf('aria-label="Capacity impact and forecast visibility"');
+  const actions=source.indexOf('aria-label="Baseline actions"');
+  const status=source.indexOf('aria-label="Baseline status messages"');
+  assertPsp.ok(team>=0 && chart>team, 'Team capacity and chart must share planning layout');
+  assertPsp.ok(impact>chart && actions>impact && status>actions, 'Full-width metrics, actions and status must follow chart');
+  assertPsp.doesNotMatch(source,/aria-label="Baseline establishment"/);
 });
+
 test('reuse selected release historical productivity and applied team configuration', () => {
   assert.match(workspace, /summarizeReleaseCapacity\(\s*established\?\.historical \?\? validHistorical,\s*established\?\.sprintMembers \?\? validSprintMembers/);
 });
@@ -36,7 +42,14 @@ test('established BL freezes displayed capacity and hides draft delta', () => {
 test('labels equal positive capacity as balanced and zero as no delivery capacity', () => {
   assert.match(workspace, /realisticStoryPointsPerSprint === 0 \? 'No delivery capacity' : 'Balanced'/);
 });
-test('capacity editing still uses blur Enter staged commit, with invalid states explained', () => {
-  assert.match(workspace, /onBlur=\{\(\) => commitCapacity\(\)\}/);
-  assert.match(workspace, /Pending capacity inputs are invalid/);
+test('capacity editing uses explicit row apply/cancel with validation', () => {
+  const source = readPspSource(resolvePspPath(process.cwd(), 'src/ReleaseWorkspace.tsx'),'utf8');
+  for(const marker of ['title="Edit member"','title="Apply row"','title="Cancel edit"','title="Remove member"','capacityRowError','aria-invalid={!!errors.availableDaysText}','aria-invalid={!!errors.productivityPercentText}']) {
+    assertPsp.ok(source.includes(marker), 'Missing '+marker);
+  }
+  assertPsp.match(source,/commitDraftSprintCapacityForm\(capacityForm,validSprintMembers\)/);
+  assertPsp.match(source,/if\(result\.applied\) \{setValidSprintMembers\(result\.members\)/);
+  assertPsp.match(source,/setCapacityForm\(createDraftSprintCapacityForm\(validSprintMembers\)\)/);
+  assertPsp.match(source,/capacityValidation\.members===null/);
 });
+
