@@ -9,16 +9,20 @@ export interface ReleaseManagementProps {
   onOpen: (id: string) => void;
   onDelete: (id: string) => void;
   onDuplicate: (id: string) => void;
+  onExportBackup: () => void;
 }
 
 const card: React.CSSProperties = { border: '1px solid #dbe3ee', borderRadius: 12, padding: 18, background: '#fff' };
 const button: React.CSSProperties = { border: '1px solid #b8c6d8', borderRadius: 8, padding: '9px 14px', font: 'inherit', cursor: 'pointer', background: '#fff', color: '#23364f' };
 
-export function ReleaseManagement({ releases, error, onRefresh, onNew, onOpen, onDelete, onDuplicate }: ReleaseManagementProps) {
+export function ReleaseManagement({ releases, error, onRefresh, onNew, onOpen, onDelete, onDuplicate, onExportBackup }: ReleaseManagementProps) {
   return <section aria-label="Release Management" style={{ display: 'grid', gap: 16 }}>
     <div style={{ display: 'flex', gap: 12, justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
       <div><h1 style={{ marginBottom: 4 }}>Release Management</h1><p style={{ marginTop: 0, color: '#617188' }}>Saved releases and baseline forecasts</p></div>
-      <button type="button" onClick={onNew} style={{ ...button, background: '#2767cf', color: '#fff', borderColor: '#2767cf' }}>+ New Release</button>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <button type="button" onClick={onExportBackup} disabled={!!error} style={button}>Download PSP Backup</button>
+        <button type="button" onClick={onNew} style={{ ...button, background: '#2767cf', color: '#fff', borderColor: '#2767cf' }}>+ New Release</button>
+      </div>
     </div>
     {error && <div role="alert" style={{ ...card, borderColor: '#d56767', color: '#9c2929' }}>
       <strong>Unable to read or update saved releases.</strong><p>{error}</p>

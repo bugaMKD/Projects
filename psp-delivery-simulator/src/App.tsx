@@ -11,6 +11,7 @@ import { newWorkspaceSession, openWorkspaceSession, editWorkspaceSession, persis
 import ReleaseWorkspace from './ReleaseWorkspace';
 import { duplicateReleaseToNewSession } from './services/DuplicateRelease';
 import { getSprintResults, parseSprintResult, validateSprintResults, type SprintResult } from './models/SprintResult';
+import { createReleaseBackup, serializeReleaseBackup } from './services/ReleaseBackup';
 
 /** 5.4.2: the app shell selects one persisted or new release; the simulator owns editable form text. */
 export default function App() {
@@ -104,6 +105,25 @@ export default function App() {
     } catch (error) { setStorageError(error instanceof Error ? error.message : 'Cannot delete release.'); }
   };
 
+  const downloadReleaseBackup = () => {
+    if (!repository || storageError) return;
+    try {
+      const backup = createReleaseBackup(repository, new Date().toISOString());
+      const blob = new Blob([serializeReleaseBackup(backup)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `psp-releases-backup-${backup.exportedAt.slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      setStorageError(null);
+    } catch (error) {
+      setStorageError(error instanceof Error ? error.message : 'Unable to export saved releases.');
+    }
+  };
+
   const saveDraft = (inputs: ReleaseInputs) => {
     if (!repository || !session) throw new Error('No active release or storage repository.');
     // Persist only after explicit action, and keep the session unchanged on failure.
@@ -156,7 +176,7 @@ export default function App() {
     </div>
     {navigation.tab === 'management' ? <main style={{ maxWidth: 1100, margin: '0 auto', padding: '26px 24px' }}>
       <ReleaseManagement releases={releases} error={storageError} onRefresh={refresh}
-        onNew={startNewRelease} onOpen={openRelease} onDelete={deleteRelease} onDuplicate={duplicateRelease} />
+        onNew={startNewRelease} onOpen={openRelease} onDelete={deleteRelease} onDuplicate={duplicateRelease} onExportBackup={downloadReleaseBackup} />
     </main> : session ? <ReleaseWorkspace
       key={`${session.saved.id}:${workspaceEpoch}`}
       session={session}
