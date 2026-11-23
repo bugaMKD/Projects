@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { createPspAuthClient } from './supabaseAuthClient';
+import { CloudReleasesPreview } from './CloudReleasesPreview';
 
 const inputStyle = { width: '100%', boxSizing: 'border-box' as const, padding: '10px 12px', border: '1px solid #cbd5e1', borderRadius: 8, font: 'inherit' };
 const buttonStyle = { padding: '10px 16px', border: 0, borderRadius: 8, background: '#2767cf', color: 'white', cursor: 'pointer', fontWeight: 600 as const };
@@ -67,6 +68,7 @@ export function AuthPreview() {
     {configurationError ? <p role="alert" style={{ color: '#b42318' }}>{configurationError}</p> : initializing ? <p role="status">Checking Supabase session…</p> : user ? <section>
       <p role="status">Signed in as <strong>{user.email ?? 'authenticated user'}</strong></p>
       <button type="button" style={buttonStyle} disabled={pending} onClick={() => void signOut()}>{pending ? 'Signing out…' : 'Sign out'}</button>
+      {client && <CloudReleasesPreview key={user.id} client={client} userId={user.id} />}
     </section> : <form onSubmit={(event) => void signIn(event)} style={{ display: 'grid', gap: 16 }}>
       <label style={{ display: 'grid', gap: 6 }}>Email<input style={inputStyle} type="email" autoComplete="username" required value={email} onChange={event => setEmail(event.target.value)}/></label>
       <label style={{ display: 'grid', gap: 6 }}>Password<input style={inputStyle} type="password" autoComplete="current-password" required value={password} onChange={event => setPassword(event.target.value)}/></label>
