@@ -1,0 +1,17 @@
+supabase password: S,yuX.tWzVyig9J
+
+QWErtyUIop
+marta: ASDfghJKl;
+
+
+Target: project psp-tool (wfhjdbhuxhinbqdowwav) · production
+Initialising login role...
+DRY RUN: migrations will *not* be pushed to the database.
+Would push these migrations:
+ • 20261119130000_create_psp_releases.sql
+Finished supabase db push.
+
+
+
+95e194bb-5e87-4e6d-8882-b41f948092bd
+76ffc78a-581b-4101-9159-28ce900aae1a
