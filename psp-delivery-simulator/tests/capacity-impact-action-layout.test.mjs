@@ -46,8 +46,8 @@ test('Save Draft is left, Establish Baseline right on the same action row', () =
 });
 
 test('existing draft safety guards and established-baseline behavior are unchanged', () => {
-  assert.match(impact, /disabled=\{!eligibility.allowed \|\| actualPreviewDirty \|\| pendingSprintCorrection\} onClick=\{saveDraft\}/);
-  assert.match(impact, /disabled=\{!eligibility.allowed \|\| actualPreviewDirty \|\| pendingSprintCorrection\} onClick=\{establish\}/);
+  assert.match(impact, /disabled=\{saving \|\| !eligibility.allowed \|\| actualPreviewDirty \|\| pendingSprintCorrection\} onClick=\{saveDraft\}/);
+  assert.match(impact, /disabled=\{saving \|\| !eligibility.allowed \|\| actualPreviewDirty \|\| pendingSprintCorrection\} onClick=\{establish\}/);
   assert.match(s, /buildEstablishedBaselineDataset\(established, completedActuals\)/);
   assert.match(s, /stroke="#dc2626"/);
 });

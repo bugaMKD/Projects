@@ -35,11 +35,11 @@ function SectionHeading({ eyebrow, title, description }: { eyebrow: string; titl
 }
 export interface ReleaseWorkspaceProps {
   session: WorkspaceSession;
-  onSaveDraft: (inputs: ReleaseInputs) => void;
-  onEstablishBaseline: (inputs: ReleaseInputs, baseline: EstablishedBaseline) => void;
+  onSaveDraft: (inputs: ReleaseInputs) => void | Promise<void>;
+  onEstablishBaseline: (inputs: ReleaseInputs, baseline: EstablishedBaseline) => void | Promise<void>;
   onDirtyChange: (dirty: boolean) => void;
-  onRecordSprint: (pointsText: string, seDaysText: string, qaDaysText: string) => void;
-  onSaveActualChanges: (results: readonly SprintResult[]) => void;
+  onRecordSprint: (pointsText: string, seDaysText: string, qaDaysText: string) => void | Promise<void>;
+  onSaveActualChanges: (results: readonly SprintResult[]) => void | Promise<void>;
 }
 
 export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBaseline, onDirtyChange, onRecordSprint, onSaveActualChanges }: ReleaseWorkspaceProps) {
@@ -55,6 +55,7 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
   const [capacityRowError, setCapacityRowError] = useState<string | null>(null);
   const [historicalOpen, setHistoricalOpen] = useState(!established);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [sprintPointsText, setSprintPointsText] = useState('');
   const [sprintSEText, setSprintSEText] = useState('');
   const [sprintQAText, setSprintQAText] = useState('');
@@ -161,43 +162,41 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
     setEditingSprintText('');
     setEditError(null);
   };
-  const saveSprintCorrections = () => {
-    if (!actualPreviewDirty || !actualPreview || !canEditActuals || pendingSprintCorrection) return;
-    try {
-      onSaveActualChanges(actualPreview);
-      setActualPreview(null);
-      setEditError(null);
-    } catch (error) { setEditError(error instanceof Error ? error.message : 'Unable to save sprint changes.'); }
+  // Await remote writes before clearing form fields or a correction preview.
+  // Local repository callbacks also work here (await accepts void).
+  const runSave = async (work: () => void | Promise<void>, onSuccess: () => void, onFailure: (message: string) => void) => {
+    if (saving) return;
+    setSaving(true);
+    try { await work(); onSuccess(); }
+    catch (error) { onFailure(error instanceof Error ? error.message : 'Save failed.'); }
+    finally { setSaving(false); }
   };
-  useEffect(() => { onDirtyChange(dirty || pendingSprintEntry || pendingSprintCorrection || actualPreviewDirty); }, [dirty, pendingSprintEntry, pendingSprintCorrection, actualPreviewDirty, onDirtyChange]);
+  const saveSprintCorrections = () => {
+    if (!actualPreviewDirty || !actualPreview || !canEditActuals || pendingSprintCorrection || saving) return;
+    const changes = actualPreview;
+    void runSave(() => onSaveActualChanges(changes), () => {
+      setActualPreview(null); setEditError(null);
+    }, setEditError);
+  };
+  useEffect(() => { onDirtyChange(dirty || pendingSprintEntry || pendingSprintCorrection || actualPreviewDirty || saving); }, [dirty, pendingSprintEntry, pendingSprintCorrection, actualPreviewDirty, saving, onDirtyChange]);
   const recordSprint = () => {
+    if (saving) return;
     if (actualPreviewDirty || pendingSprintCorrection) { setSprintError('Save or discard the sprint correction before adding a new sprint.'); return; }
-    if (!isNextSprintValid) {
-      setSprintError('Enter completed SP and actual SE/QA effective days (all non-negative).');
-      return;
-    }
-    try {
-      onRecordSprint(sprintPointsText, sprintSEText, sprintQAText);
-      setSprintPointsText('');
-      setSprintSEText('');
-      setSprintQAText('');
-      setSprintError(null);
-    } catch (error) {
-      setSprintError(error instanceof Error ? error.message : 'Unable to save sprint actuals.');
-    }
+    if (!isNextSprintValid) { setSprintError('Enter completed SP and actual SE/QA effective days (all non-negative).'); return; }
+    void runSave(() => onRecordSprint(sprintPointsText, sprintSEText, sprintQAText), () => {
+      setSprintPointsText(''); setSprintSEText(''); setSprintQAText(''); setSprintError(null);
+    }, setSprintError);
   };
   const saveDraft = () => {
-    if (established || !eligibility.allowed || actualPreviewDirty || pendingSprintCorrection) return;
-    try { onSaveDraft(currentInputs); setActionError(null); }
-    catch (error) { setActionError(error instanceof Error ? error.message : 'Unable to save draft.'); }
+    if (saving || established || !eligibility.allowed || actualPreviewDirty || pendingSprintCorrection) return;
+    void runSave(() => onSaveDraft(currentInputs), () => setActionError(null), setActionError);
   };
   const establish = () => {
-    if (established || !eligibility.allowed || actualPreviewDirty || pendingSprintCorrection) return;
-    try {
+    if (saving || established || !eligibility.allowed || actualPreviewDirty || pendingSprintCorrection) return;
+    void runSave(() => {
       const snapshot = establishBaseline(validDraft, validHistorical, validSprintMembers, draftData);
-      onEstablishBaseline(currentInputs, snapshot);
-      setActionError(null);
-    } catch (error) { setActionError(error instanceof Error ? error.message : 'Unable to establish baseline.'); }
+      return onEstablishBaseline(currentInputs, snapshot);
+    }, () => setActionError(null), setActionError);
   };
   const commitCapacity = (nextForm: typeof capacityForm = capacityForm) => {
     if (established) return;
@@ -409,16 +408,17 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
             {capacityValidation.members === null ? ' Pending capacity inputs are invalid; the chart and metrics still show the last valid configuration.' : ' This isolates changes in future team capacity, keeping historical productivity constant.'}
           </p>}
         </div>{!established && <><div aria-label="Baseline actions" style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,flexWrap:'wrap',marginTop:16}}>
-            <button type="button" disabled={!eligibility.allowed || actualPreviewDirty || pendingSprintCorrection} onClick={saveDraft}
+            <button type="button" disabled={saving || !eligibility.allowed || actualPreviewDirty || pendingSprintCorrection} onClick={saveDraft}
               style={{padding:'11px 18px',border:'1px solid #2563eb',borderRadius:8,color:'#2563eb',background:'#fff',fontWeight:700,cursor:eligibility.allowed?'pointer':'not-allowed'}}>
               Save Draft
             </button>
-            <button type="button" disabled={!eligibility.allowed || actualPreviewDirty || pendingSprintCorrection} onClick={establish}
+            <button type="button" disabled={saving || !eligibility.allowed || actualPreviewDirty || pendingSprintCorrection} onClick={establish}
               style={{padding:'11px 18px',border:0,borderRadius:8,background:eligibility.allowed?'#2563eb':'#94a3b8',color:'white',fontWeight:700,cursor:eligibility.allowed?'pointer':'not-allowed'}}>
               Establish Baseline
             </button>
           </div><p style={{fontSize:12,color:'#64738b',margin:'8px 0 0'}}>Save Draft is manual. Establish Baseline automatically saves the immutable snapshot. Saved releases can be reopened from Release Management.</p></>}<div aria-label="Baseline status messages" style={{marginTop:12}}>
           {!established && <p role="status" style={{fontSize:13,color:dirty?'#9a6700':'#166534',margin:'4px 0'}}>{dirty ? 'Unsaved changes' : 'All draft changes saved'}</p>}
+          {saving && <p role="status" style={{fontSize:13,color:"#475569"}}>Saving…</p>}
           {actionError && <p role="alert" style={{fontSize:13,color:'#b42318',margin:'4px 0'}}>{actionError}</p>}
           {!established && !eligibility.allowed && <p role="alert" style={{fontSize:13,color:'#b42318',margin:'4px 0'}}>{eligibility.reason}</p>}
           {established && <strong role="status" style={{fontSize:13,color:'#166534'}}>Baseline established · Inputs locked</strong>}
@@ -437,23 +437,23 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
             <input type="number" min="0" step="any" aria-label="Completed story points for next sprint"
               value={sprintPointsText} onChange={event => {setSprintPointsText(event.target.value);setSprintError(null);}}
               onKeyDown={event => { if (event.key === 'Enter') event.preventDefault(); }}
-              disabled={!session.persisted || dirty || actualPreviewDirty || pendingSprintCorrection}
+              disabled={saving || !session.persisted || dirty || actualPreviewDirty || pendingSprintCorrection}
               style={{padding:'10px 12px',border:'1px solid #cbd5e1',borderRadius:8,width:220}} />
           </label>
           <label style={{display:'grid',gap:6,fontSize:13,fontWeight:600}}>Actual SE effective days
             <input type="number" min="0" step="any" aria-label="Actual SE effective days for next sprint"
               value={sprintSEText} onChange={event => {setSprintSEText(event.target.value);setSprintError(null);}}
-              disabled={!session.persisted || dirty || actualPreviewDirty || pendingSprintCorrection}
+              disabled={saving || !session.persisted || dirty || actualPreviewDirty || pendingSprintCorrection}
               style={{padding:'10px 12px',border:'1px solid #cbd5e1',borderRadius:8,width:175}} />
           </label>
           <label style={{display:'grid',gap:6,fontSize:13,fontWeight:600}}>Actual QA effective days
             <input type="number" min="0" step="any" aria-label="Actual QA effective days for next sprint"
               value={sprintQAText} onChange={event => {setSprintQAText(event.target.value);setSprintError(null);}}
-              disabled={!session.persisted || dirty || actualPreviewDirty || pendingSprintCorrection}
+              disabled={saving || !session.persisted || dirty || actualPreviewDirty || pendingSprintCorrection}
               style={{padding:'10px 12px',border:'1px solid #cbd5e1',borderRadius:8,width:175}} />
           </label>
           <button type="button" onClick={recordSprint}
-            disabled={!session.persisted || dirty || actualPreviewDirty || pendingSprintCorrection || !isNextSprintValid}
+            disabled={saving || !session.persisted || dirty || actualPreviewDirty || pendingSprintCorrection || !isNextSprintValid}
             style={{padding:'11px 18px',border:0,borderRadius:8,background:'#2563eb',color:'#fff',fontWeight:700,cursor:'pointer'}}>
             Save Sprint {savedActuals.length + 1}
           </button>
@@ -465,8 +465,8 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
         {actualPreviewDirty && <div role="status" style={{padding:'12px 14px',margin:'12px 0',borderRadius:8,background:'#fff6dc',border:'1px solid #e7d3a2'}}>
           <strong>Unsaved actuals preview</strong> — the chart, totals and variances reflect your proposed corrections. Saved values are unchanged.
           <div style={{display:'flex',gap:8,marginTop:10}}>
-            <button type="button" disabled={!canEditActuals || pendingSprintCorrection} onClick={saveSprintCorrections}>Save Changes</button>
-            <button type="button" onClick={discardSprintPreview}>Discard Preview</button>
+            <button type="button" disabled={saving || !canEditActuals || pendingSprintCorrection} onClick={saveSprintCorrections}>Save Changes</button>
+            <button type="button" disabled={saving} onClick={discardSprintPreview}>Discard Preview</button>
           </div>
         </div>}
         {editError && <p role="alert" style={{color:'#b42318'}}>{editError}</p>}
