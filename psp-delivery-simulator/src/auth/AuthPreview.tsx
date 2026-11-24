@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { createPspAuthClient } from './supabaseAuthClient';
 import { CloudReleasesPreview } from './CloudReleasesPreview';
+import { CloudWorkspaceApp } from './CloudWorkspaceApp';
 
 const inputStyle = { width: '100%', boxSizing: 'border-box' as const, padding: '10px 12px', border: '1px solid #cbd5e1', borderRadius: 8, font: 'inherit' };
 const buttonStyle = { padding: '10px 16px', border: 0, borderRadius: 8, background: '#2767cf', color: 'white', cursor: 'pointer', fontWeight: 600 as const };
 
 /** Standalone auth verification view. Existing PSP workspace still uses localStorage. */
-export function AuthPreview() {
+export function AuthPreview({ fullWorkspace = false }: { fullWorkspace?: boolean }) {
   const { client, configurationError } = useMemo(() => {
     try { return { client: createPspAuthClient(), configurationError: null }; }
     catch (error) { return { client: null, configurationError: error instanceof Error ? error.message : 'Cannot configure Supabase.' }; }
@@ -62,13 +63,13 @@ export function AuthPreview() {
     finally { setPending(false); }
   };
 
-  return <main style={{ maxWidth: 520, margin: '48px auto', padding: '28px 24px', background: '#fff', border: '1px solid #e0e6ef', borderRadius: 12, fontFamily: 'system-ui, sans-serif', color: '#18273d' }}>
-    <h1 style={{ marginTop: 0 }}>PSP — Authentication Preview</h1>
-    <p style={{ fontSize: 14, color: '#52627a', lineHeight: 1.6 }}>Step 3A tests email/password sign-in and sign-out with Supabase. The existing PSP workspace and releases <strong>still use browser localStorage</strong>; signing in does not migrate or isolate them. Do not enter real planning data in this preview.</p>
+  return <main style={{ maxWidth: fullWorkspace ? 1180 : 520, margin: '48px auto', padding: '28px 24px', background: '#fff', border: '1px solid #e0e6ef', borderRadius: 12, fontFamily: 'system-ui, sans-serif', color: '#18273d' }}>
+    <h1 style={{ marginTop: 0 }}>{fullWorkspace ? "PSP — Cloud Workspace (Pilot)" : "PSP — Authentication Preview"}</h1>
+    <p style={{ fontSize: 14, color: '#52627a', lineHeight: 1.6 }}>The cloud workspace uses account-owned Supabase records. Your existing local releases remain separate in browser localStorage; nothing is imported automatically. Use test releases during this pilot.</p>
     {configurationError ? <p role="alert" style={{ color: '#b42318' }}>{configurationError}</p> : initializing ? <p role="status">Checking Supabase session…</p> : user ? <section>
       <p role="status">Signed in as <strong>{user.email ?? 'authenticated user'}</strong></p>
       <button type="button" style={buttonStyle} disabled={pending} onClick={() => void signOut()}>{pending ? 'Signing out…' : 'Sign out'}</button>
-      {client && <CloudReleasesPreview key={user.id} client={client} userId={user.id} />}
+      {client && (fullWorkspace ? <CloudWorkspaceApp key={user.id} client={client} userId={user.id} /> : <CloudReleasesPreview key={user.id} client={client} userId={user.id} />)}
     </section> : <form onSubmit={(event) => void signIn(event)} style={{ display: 'grid', gap: 16 }}>
       <label style={{ display: 'grid', gap: 6 }}>Email<input style={inputStyle} type="email" autoComplete="username" required value={email} onChange={event => setEmail(event.target.value)}/></label>
       <label style={{ display: 'grid', gap: 6 }}>Password<input style={inputStyle} type="password" autoComplete="current-password" required value={password} onChange={event => setPassword(event.target.value)}/></label>

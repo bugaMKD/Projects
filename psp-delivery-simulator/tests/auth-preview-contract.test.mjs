@@ -7,8 +7,9 @@ const auth = readFileSync(new URL('auth/AuthPreview.tsx', root), 'utf8');
 const client = readFileSync(new URL('auth/supabaseAuthClient.ts', root), 'utf8');
 
 test('authentication preview is opt-in; existing PSP remains default', () => {
-  assert.match(main, /URLSearchParams\(window.location.search\)\.has\('auth-preview'\)/);
-  assert.match(main, /authPreview \? <AuthPreview \/> : <App \/>/);
+  assert.match(main, /const authPreview = params\.has\('auth-preview'\)/);
+  assert.match(main, /const cloudWorkspace = params\.has\('cloud-workspace'\)/);
+  assert.match(main, /cloudWorkspace \? <AuthPreview fullWorkspace \/> : authPreview \? <AuthPreview \/> : <App \/>/);
 });
 test('sign in, sign out and session restore use Supabase auth', () => {
   assert.match(auth, /auth\.signInWithPassword/);

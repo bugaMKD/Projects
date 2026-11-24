@@ -9,8 +9,9 @@ test('preview draws actuals from the effective preview, not saved array',()=>{
   assert.match(workspace,/completedSprintPoints: completedActuals/);
 });
 test('only explicit Save Changes sends corrections to persistence',()=>{
-  assert.match(workspace,/onSaveActualChanges\(actualPreview\)/);
+  assert.match(workspace,/const changes = actualPreview;[\s\S]*?runSave\(\(\) => onSaveActualChanges\(changes\)/);
   assert.match(workspace,/onClick=\{saveSprintCorrections\}/);
+  assert.match(workspace,/await work\(\); onSuccess\(\);/);
   assert.match(app,/persistWorkspaceSprintResults\(repository, session/);
   assert.match(app,/validateSprintResults\(/);
 });

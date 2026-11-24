@@ -14,7 +14,8 @@ test('workspace actuals are saved only on explicit action',()=>{
 });
 test('workspace protects unsaved draft and pending sprint entry',()=>{
  assert.match(workspace,/dirty \|\| pendingSprintEntry/);
- assert.match(workspace,/disabled=\{!session\.persisted \|\| dirty/);
+ assert.match(workspace,/disabled=\{saving \|\| !session\.persisted \|\| dirty/);
+ assert.match(workspace,/await work\(\); onSuccess\(\);/);
 });
 test('established BL curve uses preview-aware actuals while retaining saved BL',()=>{
  assert.match(workspace,/buildEstablishedBaselineDataset\(established, completedActuals\)/);

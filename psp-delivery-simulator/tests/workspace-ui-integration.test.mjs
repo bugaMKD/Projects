@@ -25,7 +25,7 @@ test('5.4.2: baseline uses saved forecast snapshot rather than recomputing estab
 test('5.4.2: Save Draft is an explicit repository action', () => {
   assert.match(workspace, /onClick=\{saveDraft\}/);
   assert.match(app, /persistWorkspaceDraft\(repository,/);
-  assert.match(workspace, /disabled=\{!eligibility\.allowed \|\| actualPreviewDirty \|\| pendingSprintCorrection\} onClick=\{saveDraft\}/);
+  assert.match(workspace, /disabled=\{saving \|\| !eligibility\.allowed \|\| actualPreviewDirty \|\| pendingSprintCorrection\} onClick=\{saveDraft\}/);
 });
 test('5.4.2: unsaved navigation changes warn before leaving', () => {
   assert.match(app, /const acceptLeave/);
