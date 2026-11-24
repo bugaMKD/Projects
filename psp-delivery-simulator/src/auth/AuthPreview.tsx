@@ -7,7 +7,7 @@ import { CloudWorkspaceApp } from './CloudWorkspaceApp';
 const inputStyle = { width: '100%', boxSizing: 'border-box' as const, padding: '10px 12px', border: '1px solid #cbd5e1', borderRadius: 8, font: 'inherit' };
 const buttonStyle = { padding: '10px 16px', border: 0, borderRadius: 8, background: '#2767cf', color: 'white', cursor: 'pointer', fontWeight: 600 as const };
 
-/** Standalone auth verification view. Existing PSP workspace still uses localStorage. */
+/** Authenticated PSP cloud workspace; optional diagnostic preview in development. */
 export function AuthPreview({ fullWorkspace = false }: { fullWorkspace?: boolean }) {
   const { client, configurationError } = useMemo(() => {
     try { return { client: createPspAuthClient(), configurationError: null }; }
@@ -64,8 +64,8 @@ export function AuthPreview({ fullWorkspace = false }: { fullWorkspace?: boolean
   };
 
   return <main style={{ maxWidth: fullWorkspace ? 1180 : 520, margin: '48px auto', padding: '28px 24px', background: '#fff', border: '1px solid #e0e6ef', borderRadius: 12, fontFamily: 'system-ui, sans-serif', color: '#18273d' }}>
-    <h1 style={{ marginTop: 0 }}>{fullWorkspace ? "PSP — Cloud Workspace (Pilot)" : "PSP — Authentication Preview"}</h1>
-    <p style={{ fontSize: 14, color: '#52627a', lineHeight: 1.6 }}>The cloud workspace uses account-owned Supabase records. Your existing local releases remain separate in browser localStorage; nothing is imported automatically. Use test releases during this pilot.</p>
+    <h1 style={{ marginTop: 0 }}>{fullWorkspace ? "PSP — Delivery Simulator" : "PSP — Authentication Preview"}</h1>
+    <p style={{ fontSize: 14, color: '#52627a', lineHeight: 1.6 }}>Your releases are stored securely in your PSP account. Previously created local-only releases are separate and are not automatically imported.</p>
     {configurationError ? <p role="alert" style={{ color: '#b42318' }}>{configurationError}</p> : initializing ? <p role="status">Checking Supabase session…</p> : user ? <section>
       <p role="status">Signed in as <strong>{user.email ?? 'authenticated user'}</strong></p>
       <button type="button" style={buttonStyle} disabled={pending} onClick={() => void signOut()}>{pending ? 'Signing out…' : 'Sign out'}</button>
@@ -76,6 +76,6 @@ export function AuthPreview({ fullWorkspace = false }: { fullWorkspace?: boolean
       <button type="submit" style={buttonStyle} disabled={pending}>{pending ? 'Signing in…' : 'Sign in'}</button>
     </form>}
     {error && <p role="alert" style={{ color: '#b42318' }}>{error}</p>}
-    <p style={{ fontSize: 13, marginTop: 24 }}><a href="/">Back to local PSP</a></p>
+    {import.meta.env.DEV && <p style={{ fontSize: 13, marginTop: 24 }}><a href="/?local-workspace=1">Open local development workspace</a></p>}
   </main>;
 }
