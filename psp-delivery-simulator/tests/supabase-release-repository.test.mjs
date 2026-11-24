@@ -15,9 +15,9 @@ const clone = v => structuredClone(v);
 // Small PostgREST-like stub: exercises ownership, validation, stale revisions and no localStorage access.
 function backend() {
   const rows = new Map();
-  const context = { user: 'user-a', rows };
+  const context = { user: 'user-a', authError: null, rows };
   const client = {
-    auth: { getUser: async () => ({data:{user:context.user ? {id:context.user} : null}, error:null}) },
+    auth: { getUser: async () => ({data:{user:context.authError ? null : (context.user ? {id:context.user} : null)}, error:context.authError}) },
     from(table) {
       assert.equal(table, 'psp_releases');
       let verb = 'select', values = {}, filters = [];
@@ -100,34 +100,17 @@ test('reject invalid payload; enforce baseline immutability and allow actuals', 
   };
   const established = establishRelease(draft(), now, baseline);
   await repo.saveRelease(established);
-  //await assert.rejects(repo.saveRelease({...established,establishedBaseline:{...baseline,release:{...baseline.release,scopeStoryPoints:200}}}), /Cannot modify/);
   const modifiedBaseline = {
     ...established,
-    draft: {
-      ...established.draft,
-      release: {
-        ...established.draft.release,
-        scopeStoryPoints: 200,
-      },
-    },
+    draft: { ...established.draft, release: { ...established.draft.release, scopeStoryPoints: 200 } },
     establishedBaseline: {
       ...established.establishedBaseline,
-      release: {
-        ...established.establishedBaseline.release,
-        scopeStoryPoints: 200,
-      },
-      forecast: {
-        ...established.establishedBaseline.forecast,
-        points: established.establishedBaseline.forecast.points.map(
-          point => ({ ...point, scope: 200 })
-        ),
-      },
+      release: { ...established.establishedBaseline.release, scopeStoryPoints: 200 },
+      forecast: { ...established.establishedBaseline.forecast,
+        points: established.establishedBaseline.forecast.points.map(point => ({ ...point, scope: 200 })) },
     },
   };
-  await assert.rejects(
-    repo.saveRelease(modifiedBaseline),
-    /Cannot modify/
-  );
+  await assert.rejects(repo.saveRelease(modifiedBaseline), /Cannot modify/);
   const withActuals=replaceReleaseActuals(established,'2026-11-23T15:00:00.000Z',[15]);
   await repo.saveRelease(withActuals);
   assert.deepEqual((await repo.getRelease('release-1')).completedSprintPoints,[15]);
@@ -147,4 +130,24 @@ test('without authentication, all operations fail before querying',async()=>{
   const repo=new SupabaseReleaseRepository(client);
   await assert.rejects(repo.listReleases(), /Sign in/);
   await assert.rejects(repo.saveRelease(draft()), /Sign in/);
+});
+
+
+test('network failure during auth verification preserves revision for reconnect retry', async () => {
+  const { client, context } = backend();
+  const repo = new SupabaseReleaseRepository(client);
+  await repo.saveRelease(draft());
+  assert.equal(context.rows.get('user-a:release-1').revision, 1);
+
+  context.authError = { message: 'Failed to fetch' };
+  await assert.rejects(
+    repo.saveRelease({ ...draft(), updatedAt: '2026-11-23T13:00:00.000Z' }),
+    /Cannot verify Supabase session: Failed to fetch/,
+  );
+  assert.equal(context.rows.get('user-a:release-1').revision, 1);
+
+  context.authError = null;
+  await repo.saveRelease({ ...draft(), updatedAt: '2026-11-23T13:00:00.000Z' });
+  assert.equal(context.rows.get('user-a:release-1').revision, 2);
+  assert.equal((await repo.getRelease('release-1')).updatedAt, '2026-11-23T13:00:00.000Z');
 });

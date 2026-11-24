@@ -51,7 +51,13 @@ export class SupabaseReleaseRepository implements AsyncReleaseRepository {
 
   private async ownerId(): Promise<string> {
     const { data, error } = await this.client.auth.getUser();
-    if (error || !data.user) {
+    // A transient network/auth-server error does not prove the user signed out.
+    // Preserve cached revisions so an offline save cannot turn a later retry
+    // into an INSERT for a release that already exists remotely.
+    if (error) {
+      throw new RemoteReleaseError(`Cannot verify Supabase session: ${error.message}`);
+    }
+    if (!data.user) {
       this.known.clear();
       this.activeOwner = null;
       throw new RemoteReleaseError('Sign in to access your Supabase releases.');
