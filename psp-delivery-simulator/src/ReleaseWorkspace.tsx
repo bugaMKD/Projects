@@ -248,7 +248,6 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
   const realGap = realisticAtCurrentSprint === null ? null : data.completed - realisticAtCurrentSprint;
   const totalAllocation = capacityBuckets.reduce((sum,b)=>sum+b.percent,0);
   return <div className="app">
-    <header className="topbar"><div className="brand-mark">P</div><div className="brand-title"><strong>PSP</strong><span>Delivery Simulator</span></div><div className="topbar-right"><span className="topbar-dot"/> Local prototype <span className="mock-chip">{established ? 'ESTABLISHED BL' : 'DRAFT BL'}</span></div></header>
     <main className="container">
       <div className="page-intro"><div><div className="eyebrow">Release intelligence / Overview</div><h1>{displayedRelease.releaseName}</h1><p>Review the release baseline and track actual delivery. After establishment, BL assumptions and all three forecasts are locked.</p></div><div className="sprint-pill"><span className="status-dot"/> Completed sprint {count}</div></div>
       <nav aria-label="Release workspace tabs" role="tablist" style={{display:'flex',gap:10,marginBottom:20,flexWrap:'wrap'}}>

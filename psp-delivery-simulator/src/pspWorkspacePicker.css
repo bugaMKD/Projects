@@ -1,0 +1,10 @@
+.psp-workspace-picker{max-width:760px;padding:24px 0}
+.psp-workspace-picker h2{font-size:22px;margin:0 0 8px}
+.psp-workspace-picker p{font-size:14px;color:#64748b;line-height:1.6;margin:0 0 20px}
+.psp-workspace-picker__list{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin:18px 0}
+.psp-workspace-picker__release{display:flex;flex-direction:column;align-items:flex-start;gap:8px;text-align:left;background:#fff;border:1px solid #dae3ee;border-radius:11px;padding:17px;min-width:0;cursor:pointer;font:inherit;color:#17243d}
+.psp-workspace-picker__release:hover:not(:disabled){border-color:#2767cf;background:#f4f8ff}
+.psp-workspace-picker__release span{font-size:14px;font-weight:700;overflow-wrap:anywhere}
+.psp-workspace-picker__release small{font-size:12px;color:#687994}
+.psp-workspace-picker__release:disabled,.psp-workspace-picker__manage:disabled{opacity:.55;cursor:not-allowed}
+.psp-workspace-picker__manage{font:inherit;border:0;background:transparent;padding:9px 0;color:#2767cf;font-weight:600;cursor:pointer}
