@@ -1,9 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-/**
- * Step 3A: auth-only preview. NEVER place a database password or secret/service-role
- * key in Vite env variables: VITE_* values are exposed in browser JavaScript.
- */
+/** Only use a public browser key. VITE_* values are exposed in client JavaScript. */
 export function createPspAuthClient(): SupabaseClient {
   const url = import.meta.env.VITE_SUPABASE_URL?.trim();
   const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim();
@@ -13,11 +10,12 @@ export function createPspAuthClient(): SupabaseClient {
   if (!/^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/i.test(url)) {
     throw new Error('VITE_SUPABASE_URL must be your https://<project-ref>.supabase.co project URL.');
   }
-  // Restrict app configuration to a publishable key, not a secret key.
   if (!publishableKey.startsWith('sb_publishable_')) {
     throw new Error('Use the Supabase publishable key (sb_publishable_), never a secret or service-role key.');
   }
   return createClient(url, publishableKey, {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+    // Process the confirmation link's returned session when email verification
+    // is enabled. The existing password login continues to work as before.
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
   });
 }
