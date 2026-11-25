@@ -1,0 +1,29 @@
+
+/* PSP Cloud Workspace — collapsible two-section navigation */
+.psp-shell{--psp-side-width:250px;min-height:100vh;display:grid;grid-template-columns:var(--psp-side-width) minmax(0,1fr);background:#f5f7fb;color:#17223c}
+.psp-shell--collapsed{--psp-side-width:76px}
+.psp-sidebar{background:#14223b;color:#eaf0fc;min-height:100vh;padding:20px 12px;display:flex;flex-direction:column;gap:18px;position:sticky;top:0;height:100vh;overflow:hidden}
+.psp-sidebar__top{display:flex;align-items:center;justify-content:space-between;gap:5px}
+.psp-sidebar__brand{display:flex;align-items:center;min-width:0;gap:11px;padding-left:7px}
+.psp-sidebar__mark{display:grid;place-items:center;flex:none;width:34px;height:34px;background:#3475e8;border-radius:10px;font-weight:850;color:#fff}
+.psp-sidebar__brand-name{white-space:nowrap;font-size:15px;font-weight:750}
+.psp-sidebar__brand-name small{display:block;font-weight:400;color:#a8bbd9;font-size:10px;margin-top:3px}
+.psp-sidebar__toggle{display:grid;place-items:center;flex:none;width:28px;height:32px;border:1px solid #40516f;background:transparent;color:#d6e4fa;border-radius:8px;font-size:24px;cursor:pointer}
+.psp-shell--collapsed .psp-sidebar__top{flex-direction:column;gap:12px}
+.psp-sidebar__account{display:flex;align-items:center;min-width:0;gap:11px;border-top:1px solid #344360;border-bottom:1px solid #344360;padding:17px 7px}
+.psp-sidebar__avatar{display:grid;place-items:center;flex:none;width:34px;height:34px;border-radius:50%;background:#365c91;color:white;font-weight:700}
+.psp-sidebar__identity{min-width:0;display:block}
+.psp-sidebar__identity strong{display:block;font-size:12px;font-weight:650}
+.psp-sidebar__identity small{display:block;margin-top:4px;font-size:11px;color:#b2c5e0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
+.psp-sidebar__nav{display:flex;flex-direction:column;gap:5px}
+.psp-sidebar__item,.psp-sidebar__signout{display:flex;align-items:center;gap:12px;width:100%;border:0;border-radius:10px;text-align:left;padding:12px 11px;color:#cfdbef;background:transparent;font-size:13px;font-weight:600;line-height:1.3;font-family:inherit;white-space:nowrap;cursor:pointer}
+.psp-sidebar__item:hover:not(:disabled),.psp-sidebar__signout:hover:not(:disabled){background:#2c3e5c;color:white}
+.psp-sidebar__item--active{background:#315184;color:white;box-shadow:inset 3px 0 #7aafff}
+.psp-sidebar__item:disabled,.psp-sidebar__signout:disabled{opacity:.45;cursor:not-allowed}
+.psp-sidebar__item-icon{display:grid;place-items:center;width:26px;min-width:26px;font-size:19px;font-weight:500}
+.psp-sidebar__signout{margin-top:auto;border-top:1px solid #344360;border-radius:0;padding-top:19px}
+.psp-shell--collapsed .psp-sidebar__item,.psp-shell--collapsed .psp-sidebar__signout{justify-content:center;padding-left:0;padding-right:0}
+.psp-shell--collapsed .psp-sidebar__account{justify-content:center;padding-left:0;padding-right:0}
+.psp-shell__main{min-width:0;overflow:hidden}
+.psp-shell__body{max-width:1480px;margin:0 auto;padding:16px 24px 48px}
+@media(max-width:700px){.psp-shell{--psp-side-width:210px}.psp-shell--collapsed{--psp-side-width:62px}.psp-sidebar{padding:16px 7px}.psp-sidebar__brand{padding-left:2px}.psp-sidebar__item{font-size:12px;gap:6px}.psp-sidebar__brand-name{font-size:12px}.psp-shell__body{padding:12px 11px 30px}}

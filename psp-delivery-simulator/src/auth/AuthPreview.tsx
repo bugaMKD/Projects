@@ -98,6 +98,10 @@ export function AuthPreview({ fullWorkspace = false }: { fullWorkspace?: boolean
     setNotice(null);
   };
 
+  if (fullWorkspace && user && client) {
+    return <CloudWorkspaceApp key={user.id} client={client} userId={user.id} userEmail={user.email} onSignOut={() => { void signOut(); }} signingOut={pending} />;
+  }
+
   return <main style={{ maxWidth: fullWorkspace ? 1180 : 520, margin: '48px auto', padding: '28px 24px', background: '#fff', border: '1px solid #e0e6ef', borderRadius: 12, fontFamily: 'system-ui, sans-serif', color: '#18273d' }}>
     <h1 style={{ marginTop: 0 }}>{fullWorkspace ? 'PSP — Delivery Simulator' : 'PSP — Authentication Preview'}</h1>
     <p style={{ fontSize: 14, color: '#52627a', lineHeight: 1.6 }}>Your releases are stored securely in your PSP account. Previously created local-only releases are separate and are not automatically imported.</p>

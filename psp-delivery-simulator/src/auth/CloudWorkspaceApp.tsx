@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import '../pspSidebar.css';
+import '../pspWorkspacePicker.css';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ReleaseInputs, ReleaseRecord } from '../models/ReleaseRecord';
 import { saveDraftRelease, establishRelease, replaceReleaseSprintResults } from '../models/ReleaseRecord';
@@ -17,13 +19,20 @@ import { PSP_BACKUP_FORMAT, PSP_BACKUP_VERSION, serializeReleaseBackup } from '.
 import { parseReleaseCollection } from '../repositories/LocalStorageReleaseRepository';
 import { ReleaseConflictError, SupabaseReleaseRepository } from '../repositories/SupabaseReleaseRepository';
 
-/** Opt-in full UI pilot; all persistence goes to Supabase, never localStorage. */
-export function CloudWorkspaceApp({ client, userId }: { client: SupabaseClient; userId: string }) {
+/** Authenticated PSP workspace; all persistence goes to Supabase, never localStorage. */
+export function CloudWorkspaceApp({ client, userId, userEmail, onSignOut, signingOut = false }: {
+  client: SupabaseClient;
+  userId: string;
+  userEmail?: string;
+  onSignOut?: () => void;
+  signingOut?: boolean;
+}) {
   const repository = useMemo(() => new SupabaseReleaseRepository(client), [client, userId]);
   // Keep listing separate from the open release's revision snapshot. A list refresh
   // must never advance the save revision of a stale workspace.
   const listRepository = useMemo(() => new SupabaseReleaseRepository(client), [client, userId]);
   const [navigation, setNavigation] = useState<NavigationState>(INITIAL_NAVIGATION);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [session, setSession] = useState<WorkspaceSession | null>(null);
   const [epoch, setEpoch] = useState(0);
   const [releases, setReleases] = useState<ReleaseRecord[]>([]);
@@ -190,21 +199,71 @@ export function CloudWorkspaceApp({ client, userId }: { client: SupabaseClient; 
     return saveResults(results);
   };
 
-  const navStyle = { padding: '9px 14px', border: '1px solid #c9d4e2', borderRadius: 8, cursor: 'pointer' };
-  return <section style={{ marginTop: 24, borderTop: '1px solid #dbe3ee', paddingTop: 18 }}>
-    <p role="status" style={{ color: '#245c38', fontWeight: 600 }}>Cloud workspace pilot — signed-in account only. Local PSP releases are not imported or changed.</p>
-    <nav style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-      <button type="button" style={navStyle} disabled={pending} onClick={goManagement}>Cloud Release Management</button>
-      <button type="button" style={navStyle} disabled={pending || !session} onClick={() => setNavigation(value => ({ ...value, tab: 'workspace' }))}>Cloud Release Workspace</button>
-      <button type="button" style={navStyle} disabled={pending} onClick={() => runButton(async () => { await refresh(); })}>Refresh cloud releases</button>
-    </nav>
-    {loading && <p role="status">Loading cloud releases…</p>}
-    {pending && <p role="status">Cloud operation in progress…</p>}
-    {error && <p role="alert" style={{ color: '#b42318' }}>{error}</p>}
-    {!loading && navigation.tab === 'management' && <ReleaseManagement releases={releases} error={error} onRefresh={() => runButton(async () => { await refresh(); })}
-      onNew={newRelease} onOpen={openRelease} onDelete={remove} onDuplicate={duplicate} onExportBackup={downloadBackup} />}
-    {!loading && navigation.tab === 'workspace' && session && <ReleaseWorkspace key={`${session.saved.id}:${epoch}`} session={session}
-      onSaveDraft={saveDraft} onEstablishBaseline={establish} onRecordSprint={recordSprint}
-      onSaveActualChanges={correctSprint} onDirtyChange={value => { dirtyRef.current = value; }} />}
-  </section>;
+  const goWorkspace = () => {
+    if (pendingRef.current || loading) return;
+    // An active session is optional: the workspace can first offer release selection.
+    setNavigation(value => ({ ...value, tab: 'workspace' }));
+  };
+
+  return <main className={`psp-shell ${sidebarOpen ? '' : 'psp-shell--collapsed'}`}>
+    <aside className="psp-sidebar" aria-label="PSP navigation">
+      <div className="psp-sidebar__top">
+        <div className="psp-sidebar__brand" title="PSP Delivery Simulator">
+          <span className="psp-sidebar__mark" aria-hidden="true">P</span>
+          {sidebarOpen && <span className="psp-sidebar__brand-name">PSP <small>Delivery Simulator</small></span>}
+        </div>
+        <button type="button" className="psp-sidebar__toggle" aria-label={sidebarOpen ? 'Collapse navigation' : 'Expand navigation'}
+          aria-expanded={sidebarOpen} onClick={() => setSidebarOpen(open => !open)} title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}>
+          {sidebarOpen ? '‹' : '›'}
+        </button>
+      </div>
+      <div className="psp-sidebar__account" title={userEmail || 'Signed-in account'}>
+        <span className="psp-sidebar__avatar" aria-hidden="true">{(userEmail || 'U').charAt(0).toUpperCase()}</span>
+        {sidebarOpen && <span className="psp-sidebar__identity"><strong>Signed in</strong><small>{userEmail || 'Authenticated user'}</small></span>}
+      </div>
+      <nav className="psp-sidebar__nav" aria-label="Workspace sections">
+        <button type="button" className={`psp-sidebar__item ${navigation.tab === 'management' ? 'psp-sidebar__item--active' : ''}`}
+          aria-current={navigation.tab === 'management' ? 'page' : undefined} title="Release Management" disabled={pending || loading}
+          onClick={goManagement}>
+          <span className="psp-sidebar__item-icon" aria-hidden="true">▤</span>{sidebarOpen && <span>Release Management</span>}
+        </button>
+        <button type="button" className={`psp-sidebar__item ${navigation.tab === 'workspace' ? 'psp-sidebar__item--active' : ''}`}
+          aria-current={navigation.tab === 'workspace' ? 'page' : undefined} title="Workspace"
+          disabled={pending || loading} onClick={goWorkspace}>
+          <span className="psp-sidebar__item-icon" aria-hidden="true">▦</span>{sidebarOpen && <span>Workspace</span>}
+        </button>
+      </nav>
+      {onSignOut && <button type="button" className="psp-sidebar__signout" title="Sign out"
+        disabled={pending || signingOut} onClick={() => { if (acceptLeave()) onSignOut(); }}>
+        <span aria-hidden="true" className="psp-sidebar__item-icon">⇥</span>{sidebarOpen && <span>{signingOut ? 'Signing out…' : 'Sign out'}</span>}
+      </button>}
+    </aside>
+    <section className="psp-shell__main">
+      <div className="psp-shell__body">
+        {loading && <p role="status">Loading cloud releases…</p>}
+        {pending && <p role="status">Cloud operation in progress…</p>}
+        {error && <p role="alert" style={{ color: '#b42318' }}>{error}</p>}
+        {!loading && navigation.tab === 'management' && <ReleaseManagement releases={releases} error={error} onRefresh={() => runButton(async () => { await refresh(); })}
+          onNew={newRelease} onOpen={openRelease} onDelete={remove} onDuplicate={duplicate} onExportBackup={downloadBackup} />}
+        {!loading && navigation.tab === 'workspace' && !session && <section className="psp-workspace-picker" aria-label="Choose release for Workspace">
+          <h2>Choose a release</h2>
+          <p>Select a saved release to open its Workspace. No release is selected automatically.</p>
+          {releases.length === 0 ? <p>No saved releases yet. Create your first release in Release Management.</p> :
+            <div className="psp-workspace-picker__list">
+              {releases.map(release => <button key={release.id} type="button" disabled={pending}
+                className="psp-workspace-picker__release" onClick={() => openRelease(release.id)}>
+                <span>{release.draft.release.releaseName}</span>
+                <small>{release.baselineStatus === 'established' ? 'Established baseline' : 'Draft'}</small>
+              </button>)}
+            </div>}
+          <button type="button" className="psp-workspace-picker__manage" disabled={pending} onClick={goManagement}>
+            Go to Release Management
+          </button>
+        </section>}
+        {!loading && navigation.tab === 'workspace' && session && <ReleaseWorkspace key={`${session.saved.id}:${epoch}`} session={session}
+          onSaveDraft={saveDraft} onEstablishBaseline={establish} onRecordSprint={recordSprint}
+          onSaveActualChanges={correctSprint} onDirtyChange={value => { dirtyRef.current = value; }} />}
+      </div>
+    </section>
+  </main>;
 }
