@@ -29,10 +29,10 @@ export function ReleaseHistoricalCapacityView({ historical, sprintMembers, estab
     </div>}
     {mode !== 'historical' && <div className="sprint-table-wrap">
       <table>
-        <thead><tr><th>Role</th><th style={{textAlign:'right'}}>Members</th>{mode === 'all' && <th style={{textAlign:'right'}}>Historical SP / effective day</th>}<th style={{textAlign:'right'}}>Available days / sprint</th><th style={{textAlign:'right'}}>Effective days / sprint</th><th style={{textAlign:'right'}}>Potential SP / sprint</th></tr></thead>
+        <thead><tr><th>Role</th><th style={{textAlign:'right'}}>Members</th>{mode === 'all' && <th style={{textAlign:'right'}}>Historical SP / effective day</th>}{mode !== 'future' && <th style={{textAlign:'right'}}>Available days / sprint</th>}<th style={{textAlign:'right'}}>Effective days / sprint</th><th style={{textAlign:'right'}}>Potential SP / sprint</th></tr></thead>
         <tbody>{[summary.se, summary.qa].map(r => <tr key={r.role}>
           <td><strong>{r.role}</strong></td><td style={cell}>{r.memberCount}</td>{mode === 'all' && <td style={cell}>{fmt(r.historicalStoryPointsPerEffectiveDay)}</td>}
-          <td style={cell}>{fmt(r.futureAvailableDaysPerSprint)}</td><td style={cell}>{fmt(r.futureEffectiveDaysPerSprint)}</td><td style={cell}>{fmt(r.potentialStoryPointsPerSprint)}</td>
+          {mode !== 'future' && <td style={cell}>{fmt(r.futureAvailableDaysPerSprint)}</td>}<td style={cell}>{fmt(r.futureEffectiveDaysPerSprint)}</td><td style={cell}>{fmt(r.potentialStoryPointsPerSprint)}</td>
         </tr>)}</tbody>
       </table>
     </div>}

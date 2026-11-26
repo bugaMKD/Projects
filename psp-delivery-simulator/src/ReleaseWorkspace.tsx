@@ -497,11 +497,6 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
         })}</tbody></table></div>
       </section>
       <div className="lower-grid">
-        <section className="panel"><SectionHeading eyebrow="03 / Capacity planning · Preserved from v1" title="PSP allocation" description="Four original mock buckets shown unchanged. Allocation math is postponed to a later iteration." />
-          <div className="allocation-bar">{capacityBuckets.map(b=><div key={b.label} style={{width:`${b.percent}%`,background:b.color}} title={`${b.label}: ${b.percent}%`}/>)}</div>
-          <div className="bucket-list">{capacityBuckets.map(b=><div className="bucket" key={b.label}><span className="bucket-color" style={{background:b.color}}/><div className="bucket-text"><strong>{b.label}</strong><small>{b.description}</small></div><span className="bucket-value">{b.percent}%</span></div>)}</div>
-          <div className="allocation-total">Original mock allocation total <strong>{totalAllocation}%</strong></div>
-        </section>
         <section className="panel"><SectionHeading eyebrow={established ? '04 / Established BL outlook' : '04 / Draft BL delivery outlook'} title={established ? "Established BL completion forecast" : "Draft BL completion forecast"} description="Calculated completion sprints from editable scope, variation and historical productivity, with editable per-sprint SE/QA capacity." />
           <div className="forecast-rows">{[
             {label:'BL Optimistic',sprint:data.forecastFinishes.optimistic,rate:data.scenarioThroughputs.optimistic,color:'#19986f'},
@@ -510,8 +505,14 @@ export default function ReleaseWorkspace({ session, onSaveDraft, onEstablishBase
           ].map(f=><div className="forecast-row" key={f.label}><span className="forecast-dot" style={{background:f.color}}/><span className="forecast-name">{f.label}</span><span className="forecast-rate">{formatStoryPoints(f.rate)} SP/sprint</span><strong>{formatFinish(f.sprint)}</strong></div>)}</div>
           <div className="divider"/><p className="outlook-note">These completion estimates are based on the BL inputs. Once established, actual delivery does not recalculate them.</p>
         </section>
+        <ReleaseHistoricalCapacityView historical={established?.historical ?? validHistorical} sprintMembers={established?.sprintMembers ?? validSprintMembers} established={!!established} mode="future"/>
       </div>
-      <ReleaseHistoricalCapacityView historical={established?.historical ?? validHistorical} sprintMembers={established?.sprintMembers ?? validSprintMembers} established={!!established} mode="future"/>
+        <section className="panel"><SectionHeading eyebrow="03 / Capacity planning · Preserved from v1" title="PSP allocation" description="Four original mock buckets shown unchanged. Allocation math is postponed to a later iteration." />
+          <div className="allocation-bar">{capacityBuckets.map(b=><div key={b.label} style={{width:`${b.percent}%`,background:b.color}} title={`${b.label}: ${b.percent}%`}/>)}</div>
+          <div className="bucket-list">{capacityBuckets.map(b=><div className="bucket" key={b.label}><span className="bucket-color" style={{background:b.color}}/><div className="bucket-text"><strong>{b.label}</strong><small>{b.description}</small></div><span className="bucket-value">{b.percent}%</span></div>)}</div>
+          <div className="allocation-total">Original mock allocation total <strong>{totalAllocation}%</strong></div>
+        </section>
+
       </div>
       <div role="tabpanel" id="historical-data-panel" aria-labelledby="historical-data-tab" hidden={workspaceTab !== 'history'}>
         <div className="page-intro"><div><div className="eyebrow">Historical reference / Selected release</div><h2>Historical Data — {displayedRelease.releaseName}</h2><p>The historical assumptions belong to this release. They are frozen when its baseline is established, and never shared or overwritten by another release.</p></div></div>
