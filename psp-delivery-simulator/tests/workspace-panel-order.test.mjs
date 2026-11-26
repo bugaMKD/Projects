@@ -24,13 +24,14 @@ test('5.6.0 capacity-and-chart comparison precedes metrics and sprint history', 
   assertPsp.match(source,/gridTemplateColumns:'minmax\(0, 2fr\) minmax\(0, 3fr\)'/);
 });
 
-test('5.4.6 PSP allocation and BL outlook remain side-by-side after actuals', () => {
+test('BL forecast and future capacity precede PSP allocation', () => {
   const sprint = position('<section className="panel sprint-panel">');
   const grid = position('<div className="lower-grid">');
-  const allocation = position('title="PSP allocation"');
   const outlook = position('title={established ? "Established BL completion forecast"');
   const capacity = position('<ReleaseHistoricalCapacityView ');
-  assert.ok(sprint < grid && grid < allocation && allocation < outlook && outlook < capacity);
+  const allocation = position('title="PSP allocation"');
+
+  assert.ok(sprint < grid && grid < outlook && outlook < capacity && capacity < allocation);
 });
 
 test('5.4.6 section labels reflect updated order', () => {
